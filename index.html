@@ -419,7 +419,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 02:28";
+const BUILD="07/11/2026 06:45";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -644,16 +644,16 @@ function rPotes(){
 function rOrc(){
   const so=sobras(), nao=so-alocado();
   E("planoRows").innerHTML=
-    '<div class="row2"><span class="k">Entrada mensal</span><span class="v tnum">'+fmt0(S.rendimento)+'</span></div>'
-    +'<div class="row2"><span class="k">− Despesas fixas</span><span class="v tnum">'+fmt0(totalFixas())+'</span></div>'
-    +'<div class="row2"><span class="k">= Sobras</span><span class="v ac tnum">'+fmt0(so)+'</span></div>'
-    +S.potes.filter(p=>!p.fix).map(p=>'<div class="row2"><span class="k">→ '+esc(p.n)+'</span><span class="v tnum">'+fmt0(p.aloc)+'</span></div>').join("")
-    +'<div class="row2"><span class="k">Não alocado</span><span class="v tnum '+(nao<0?"bad":nao>0?"":"ac")+'">'+fmt0(nao)+'</span></div>';
+    '<div class="row2"><span class="k">Entrada mensal</span><span class="v tnum">'+fmt(S.rendimento)+'</span></div>'
+    +'<div class="row2"><span class="k">− Despesas fixas</span><span class="v tnum">'+fmt(totalFixas())+'</span></div>'
+    +'<div class="row2"><span class="k">= Sobras</span><span class="v ac tnum">'+fmt(so)+'</span></div>'
+    +S.potes.filter(p=>!p.fix).map(p=>'<div class="row2"><span class="k">→ '+esc(p.n)+'</span><span class="v tnum">'+fmt(p.aloc)+'</span></div>').join("")
+    +'<div class="row2"><span class="k">Não alocado</span><span class="v tnum '+(nao<0?"bad":nao>0?"":"ac")+'">'+fmt(nao)+'</span></div>';
 
   E("autoList").innerHTML=S.potes.filter(p=>!p.fix&&p.aloc>0).map(p=>{
     const cheio=p.obj&&p.saldo>=p.obj;
     return '<div class="row2"><span class="k">Dia '+S.dia+' &rarr; '+esc(p.n)+'</span><span class="v tnum'+(cheio?" bad":"")+'">'
-      +(cheio?"cancelar":fmt0(p.aloc))+'</span></div>';
+      +(cheio?"cancelar":fmt(p.aloc))+'</span></div>';
   }).join("")||'<div class="empty">Define a repartição acima.</div>';
   rReconc();
 }
@@ -710,9 +710,9 @@ function rPlano(){
   E("potesCfg").innerHTML=S.potes.map(p=>{
     const a=p.fix?totalFixas():(+p.aloc||0);
     const c=p.conta?conta(p.conta):null;
-    const bits=[p.fix?"do orçamento":(a>0?fmt0(a)+"/mês":"sem repartição"),
+    const bits=[p.fix?"do orçamento":(a>0?fmt(a)+"/mês":"sem repartição"),
                 p.fix?"reinicia":(p.acum?"acumula":"reinicia")];
-    if(p.obj) bits.push("objetivo "+fmt0(p.obj));
+    if(p.obj) bits.push("objetivo "+fmt(p.obj));
     bits.push(c?esc(c.n):"sem conta");
     return '<button class="pote" data-pp="'+p.id+'" style="width:100%;text-align:left;display:flex">'
       +'<div class="dot" style="background:'+p.c+'"></div>'
