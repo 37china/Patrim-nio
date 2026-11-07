@@ -419,7 +419,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 02:09";
+const BUILD="07/11/2026 02:11";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -1165,10 +1165,9 @@ function pintaPatrim(){
   const agora=new Date(), P=patrimonio(agora);
 
   const hv=E("patTotal");
-  hv.innerHTML=(Math.round(P.meu*100)/100).toLocaleString("pt-PT",{minimumFractionDigits:2,maximumFractionDigits:2})+"<small>€</small>";
-  E("patSub").innerHTML="Juro acumulado <b>"+fmt4(P.liquido)+"</b> líquido"
-    +(P.reserva>0.004?"<br>Reserva para IRS: "+fmt(P.reserva):"")
-    +(P.pend>0.004?"<br>A capitalizar: "+fmt(P.pend):"");
+  hv.innerHTML=(Math.round(P.valor*100)/100).toLocaleString("pt-PT",{minimumFractionDigits:2,maximumFractionDigits:2})+"<small>€</small>";
+  E("patSub").innerHTML="Juro acumulado <b>"+fmt4(P.liquido)+"</b>"
+    +(P.pend>0.004?"<br>Ainda por entrar na conta: "+fmt(P.pend):"");
 
   E("contasList").innerHTML=S.contas.map(c=>{
     const e=estado(c,agora);
@@ -1238,7 +1237,7 @@ function blocoTaxas(c,rot){
       :'')
     +'</div>'
     +'<button class="btn sec" id="cTaxaAdd" style="margin-bottom:6px">+ Alteração de taxa</button>'
-    +(emVigor!==null?'<div class="row2" style="margin-bottom:12px"><span class="k">Em vigor hoje</span><span class="v tnum">'
+    +(emVigor!==null?'<div class="row2" style="margin-bottom:12px"><span class="k">Em vigor hoje</span><span class="v tnum" id="cTaxaEmVigor">'
       +emVigor.toLocaleString("pt-PT")+' %</span></div>':'<div style="height:12px"></div>');
 }
 
@@ -1334,15 +1333,26 @@ function sheetConta(id){
     if(juros){
       const e=estado(c,new Date());
       h+=SEC("Resultado")
-        +'<div class="row2"><span class="k">Posto por ti</span><span class="v tnum">'+fmt(e.investido)+'</span></div>'
-        +'<div class="row2"><span class="k">Vale agora</span><span class="v ac tnum">'+fmt(e.valor)+'</span></div>'
-        +((e.pendLiq||0)>0?'<div class="row2"><span class="k">Juro acumulado</span><span class="v tnum">'+fmt(e.pendLiq)+'</span></div>':'')
-        +(e.proxima?'<div class="row2"><span class="k">Próxima entrada</span><span class="v">'+fmtData(e.proxima)+'</span></div>':'');
+        +'<div class="row2"><span class="k">Posto por ti</span><span class="v tnum" id="rPosto">'+fmt(e.investido)+'</span></div>'
+        +'<div class="row2"><span class="k">Vale agora</span><span class="v ac tnum" id="rValor">'+fmt(e.valor)+'</span></div>'
+        +'<div class="row2"><span class="k">Juro acumulado</span><span class="v tnum" id="rPend">'+fmt(e.pendLiq||0)+'</span></div>'
+        +'<div class="row2"><span class="k">Próxima entrada</span><span class="v" id="rProx">'+(e.proxima?fmtData(e.proxima):"—")+'</span></div>';
     }
 
     h+='<div style="height:8px"></div><button class="btn" id="cOk">Guardar</button>';
     if(!nova) h+='<button class="btn dang" id="cDel">Apagar conta</button>';
     openSheet(h);
+    function resumo(){
+      if(!E("rValor")) return;
+      colher();
+      const x=estado(c,new Date());
+      E("rPosto").textContent=fmt(x.investido||0);
+      E("rValor").textContent=fmt(x.valor||0);
+      E("rPend").textContent=fmt(x.pendLiq||0);
+      E("rProx").textContent=x.proxima?fmtData(x.proxima):"—";
+      const tx=E("cTaxaEmVigor");
+      if(tx) tx.textContent=(c.taxas&&c.taxas.length?taxaAtual(c):0).toLocaleString("pt-PT")+" %";
+    }
     E("cT").onchange=e=>{
       colher(); c.tipo=e.target.value;
       if(c.tipo==="aforro"){
@@ -1355,14 +1365,14 @@ function sheetConta(id){
     if(E("cF")) E("cF").onchange=e=>{c.freq=e.target.value;colher();form();};
     if(E("cTaxaAdd")){
       E("cTaxaAdd").onclick=()=>{colher();c.taxas.push({data:new Date().toISOString().slice(0,10),v:c.taxas.length?c.taxas[c.taxas.length-1].v:(c.tipo==="aforro"?2.5:0)});form();};
-      E("cTaxas").querySelectorAll("[data-tv]").forEach(el=>el.onchange=()=>{colher();form();});
-      E("cTaxas").querySelectorAll("[data-td]").forEach(el=>el.onchange=()=>{colher();form();});
+      E("cTaxas").querySelectorAll("[data-tv]").forEach(el=>el.onchange=resumo);
+      E("cTaxas").querySelectorAll("[data-td]").forEach(el=>el.onchange=resumo);
       E("cTaxas").querySelectorAll("[data-tx]").forEach(el=>el.onclick=()=>{colher();c.taxas.splice(+el.dataset.tx,1);form();});
     }
     if(E("cSubAdd")){
       E("cSubAdd").onclick=()=>{colher();c.subs.push({id:"s"+Date.now()+Math.random().toString(36).slice(2,5),valor:0,data:new Date().toISOString().slice(0,10)});form();};
-      E("cSubs").querySelectorAll("[data-sv]").forEach(el=>el.onchange=()=>{colher();form();});
-      E("cSubs").querySelectorAll("[data-sd]").forEach(el=>el.onchange=()=>{colher();form();});
+      E("cSubs").querySelectorAll("[data-sv]").forEach(el=>el.onchange=resumo);
+      E("cSubs").querySelectorAll("[data-sd]").forEach(el=>el.onchange=resumo);
       E("cSubs").querySelectorAll("[data-sx]").forEach(el=>el.onclick=()=>{colher();c.subs.splice(+el.dataset.sx,1);form();});
     }
     E("cOk").onclick=()=>{
@@ -1380,6 +1390,9 @@ function sheetConta(id){
       if(nova) S.contas.push(c); else Object.assign(conta(id),c);
       save();closeSheet();toast("Guardado");pintaPatrim();
     };
+    ["cDJ","cP","cR","cSerie","cVal","cInv","cS"].forEach(id=>{
+      const el=E(id); if(el) el.onchange=resumo;
+    });
     if(!nova) E("cDel").onclick=()=>{
       colher();
       const e=estado(c,new Date());
