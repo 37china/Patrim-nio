@@ -1203,7 +1203,6 @@ function pintaPatrim(){
       : '')
     +'<div class="meta" style="margin-top:7px">'+bruta.toLocaleString("pt-PT")+'% ao ano'
     +((+c.irs>0)?' &rarr; '+(bruta*(1-c.irs/100)).toFixed(2).replace(".",",")+'% efetiva':'')
-      +' · '+Math.floor(e.dias)+' dias'
       +(e.proxima?' · entra '+fmtData(e.proxima):'')
 
       +'</div></div>';
