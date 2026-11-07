@@ -419,7 +419,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 02:06";
+const BUILD="07/11/2026 02:09";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -1202,7 +1202,7 @@ function pintaPatrim(){
         +'<span>'+fmt(posto)+' postos · '+(ganho>=0?"+":"")+fmt(ganho)+'</span></div>'
       +(vive
         ? '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:9px">'
-          +'<span class="meta">'+(c.tipo==="aforro"?"por capitalizar":"por creditar")+'</span>'
+          +'<span class="meta">Juro acumulado</span>'
           +'<b class="tnum" style="font-size:13.5px;color:var(--ac);font-feature-settings:\'tnum\'">+'
           +fmt6(c.freq==="diaria"?(e.liquido||0):(e.pendLiq||0))+'</b></div>'
         : '')
@@ -1212,7 +1212,7 @@ function pintaPatrim(){
       +(e.proxima?' · entra '+fmtData(e.proxima):'')
       +(e.reserva>0.004?' · reserva IRS '+fmt(e.reserva):'')
       +'</div></div>';
-  }).join("")+'<div class="row2" style="border:none;padding-top:12px"><span class="k">Juro líquido acumulado</span>'
+  }).join("")+'<div class="row2" style="border:none;padding-top:12px"><span class="k">Total acumulado</span>'
     +'<span class="v ac tnum">'+fmt4(P.liquido)+'</span></div>'
   :'<div class="empty">Preenche saldo, data e taxa numa conta para a simulação arrancar.</div>';
 
@@ -1336,7 +1336,7 @@ function sheetConta(id){
       h+=SEC("Resultado")
         +'<div class="row2"><span class="k">Posto por ti</span><span class="v tnum">'+fmt(e.investido)+'</span></div>'
         +'<div class="row2"><span class="k">Vale agora</span><span class="v ac tnum">'+fmt(e.valor)+'</span></div>'
-        +((e.pendLiq||0)>0?'<div class="row2"><span class="k">Por creditar</span><span class="v tnum">'+fmt(e.pendLiq)+'</span></div>':'')
+        +((e.pendLiq||0)>0?'<div class="row2"><span class="k">Juro acumulado</span><span class="v tnum">'+fmt(e.pendLiq)+'</span></div>':'')
         +(e.proxima?'<div class="row2"><span class="k">Próxima entrada</span><span class="v">'+fmtData(e.proxima)+'</span></div>':'');
     }
 
