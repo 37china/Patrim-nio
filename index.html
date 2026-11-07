@@ -329,11 +329,6 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
       <button class="btn sec" id="addConta" style="margin-top:12px">+ Adicionar conta</button>
     </div>
 
-    <div class="card">
-      <h3>Imposto sobre juros</h3>
-      <label class="f"><span>Taxa a reservar (%)</span>
-        <input type="number" inputmode="decimal" step="0.1" id="cfIrs"></label>
-    </div>
 
     </div>
   </section>
@@ -419,7 +414,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 02:11";
+const BUILD="07/11/2026 02:12";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -460,7 +455,7 @@ function load(){
     S.heroPote=S.heroPote||"correntes"; S.mig2=1;
   }
   if(!Array.isArray(S.contas)) S.contas=JSON.parse(JSON.stringify(DEF.contas));
-  if(typeof S.irs!=="number") S.irs=28;
+  S.irs=0;   // a app não modela imposto
   S.contas.forEach(c=>{
     if(c.tipo!=="aforro"&&c.tipo!=="remunerada") return;
     if(!Array.isArray(c.taxas)){
@@ -841,7 +836,7 @@ function rConfigLight(){
 /* ================= PATRIMÓNIO E JUROS ================= */
 const TIPOS={ordem:"À ordem",remunerada:"À ordem remunerada",aforro:"Certificados de Aforro",investimento:"Carteira de investimento"};
 const conta=id=>S.contas.find(c=>c.id===id);
-const IRS_AFORRO=28;
+const IRS_AFORRO=0;   // a app não modela imposto
 
 function addMeses(d,n){
   const x=new Date(d.getTime()), dia=x.getDate();
@@ -1150,9 +1145,6 @@ function pintaGatePin(){
 let TICK=null;
 function rPatrim(){
   if(mostraGate()) return;
-  E("cfIrs").value=S.irs;
-  E("cfIrs").oninput=e=>{const v=+e.target.value; S.irs=(v>=0&&v<=100)?v:28; save();};
-
   pintaPatrim();
   if(TICK) clearInterval(TICK);
   TICK=setInterval(()=>{ if(view==="patrim") pintaPatrim(); else {clearInterval(TICK);TICK=null;} },1000);
@@ -1188,7 +1180,6 @@ function pintaPatrim(){
   E("rendeList").innerHTML=rende.length?rende.map(c=>{
     const e=estado(c,agora);
     const bruta=c.tipo==="aforro" ? taxaAtual(c)+(+c.premio||0) : taxaAtual(c);
-    const anoLiq=bruta*(1-(c.tipo==="aforro"?IRS_AFORRO:S.irs)/100);
     const posto=e.investido||0;
     const ganho=e.valor-posto;
     const vive=(e.pendLiq||0)>0 || c.freq==="diaria";
@@ -1205,11 +1196,10 @@ function pintaPatrim(){
           +'<b class="tnum" style="font-size:13.5px;color:var(--ac);font-feature-settings:\'tnum\'">+'
           +fmt6(c.freq==="diaria"?(e.liquido||0):(e.pendLiq||0))+'</b></div>'
         : '')
-      +'<div class="meta" style="margin-top:7px">'+bruta.toLocaleString("pt-PT")+'% bruto &rarr; '
-      +anoLiq.toFixed(2).replace(".",",")+'% líquido/ano'
+      +'<div class="meta" style="margin-top:7px">'+bruta.toLocaleString("pt-PT")+'% ao ano'
       +' · '+Math.floor(e.dias)+' dias'
       +(e.proxima?' · entra '+fmtData(e.proxima):'')
-      +(e.reserva>0.004?' · reserva IRS '+fmt(e.reserva):'')
+
       +'</div></div>';
   }).join("")+'<div class="row2" style="border:none;padding-top:12px"><span class="k">Total acumulado</span>'
     +'<span class="v ac tnum">'+fmt4(P.liquido)+'</span></div>'
@@ -1304,7 +1294,7 @@ function sheetConta(id){
     // --- 3. taxa ---
     if(juros){
       h+=SEC("Taxa de juro")
-        +blocoTaxas(c, t==="aforro"?"Taxa base (%)":"TANB (% bruta ao ano)");
+        +blocoTaxas(c, t==="aforro"?"Taxa base (%)":"TANB (% ao ano)");
     }
 
     // --- 4. o resto ---
@@ -1317,9 +1307,7 @@ function sheetConta(id){
           ? '<label class="f"><span>Dia do mês em que o juro entra (1 a 28)</span>'
             +'<input type="number" inputmode="numeric" min="1" max="28" id="cDJ" value="'+(c.diaJuro||1)+'"></label>'
           : '')
-        +'<label class="f"><span>Imposto retido na fonte?</span><select id="cR">'
-        +'<option value="0"'+(c.retencao?"":" selected")+'>Não — guardo reserva para o IRS</option>'
-        +'<option value="1"'+(c.retencao?" selected":"")+'>Sim — já vem líquido</option></select></label>';
+;
     }
     if(t==="aforro"){
       h+=SEC("Detalhes da série")
@@ -1390,7 +1378,7 @@ function sheetConta(id){
       if(nova) S.contas.push(c); else Object.assign(conta(id),c);
       save();closeSheet();toast("Guardado");pintaPatrim();
     };
-    ["cDJ","cP","cR","cSerie","cVal","cInv","cS"].forEach(id=>{
+    ["cDJ","cP","cSerie","cVal","cInv","cS"].forEach(id=>{
       const el=E(id); if(el) el.onchange=resumo;
     });
     if(!nova) E("cDel").onclick=()=>{
@@ -1423,7 +1411,6 @@ function sheetConta(id){
     if(g("cTx")) c.tanb=+g("cTx").value||0;
     if(g("cF")) c.freq=g("cF").value;
     if(g("cDJ")){const v=+g("cDJ").value; c.diaJuro=(v>=1&&v<=28)?v:1;}
-    if(g("cR")) c.retencao=g("cR").value==="1";
     if(g("cSerie")) c.serie=g("cSerie").value;
     if(g("cP")) c.premio=+g("cP").value||0;
     if(E("cSubs")&&Array.isArray(c.subs)){
