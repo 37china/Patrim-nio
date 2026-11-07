@@ -256,7 +256,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 
 
     <div class="card">
-      <h3>Orçamento de vida</h3>
+      <h3>Orçamento</h3>
       <div id="fixasList"></div>
       <button class="btn sec" id="addFixa" style="margin-top:10px">+ Adicionar linha</button>
       <button class="btn sec" id="calcOrc">Calcular a partir dos meus gastos</button>
@@ -419,7 +419,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 01:48";
+const BUILD="07/11/2026 01:50";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -709,7 +709,7 @@ function rPlano(){
   E("potesCfg").innerHTML=S.potes.map(p=>{
     const a=p.fix?totalFixas():(+p.aloc||0);
     const c=p.conta?conta(p.conta):null;
-    const bits=[p.fix?"do orçamento de vida":(a>0?fmt0(a)+"/mês":"sem repartição"),
+    const bits=[p.fix?"do orçamento":(a>0?fmt0(a)+"/mês":"sem repartição"),
                 p.fix?"reinicia":(p.acum?"acumula":"reinicia")];
     if(p.obj) bits.push("objetivo "+fmt0(p.obj));
     bits.push(c?esc(c.n):"sem conta");
@@ -1445,7 +1445,7 @@ function sheetOrcamento(){
     +(r.parcial?' <b>O mês em curso ainda não acabou, por isso esta média está subestimada.</b>':'')+'</p>'
     +'<div id="oRows"></div>'
     +'<div class="row2" style="margin-top:6px"><span class="k">Total do orçamento</span><span class="v tnum" id="oTot"></span></div>'
-    +'<button class="btn" id="oOk" style="margin-top:14px">Aplicar como orçamento de vida</button>'
+    +'<button class="btn" id="oOk" style="margin-top:14px">Aplicar como orçamento</button>'
     +'<button class="btn sec" id="oNo">Cancelar</button>');
   function draw(){
     E("oRows").innerHTML=r.cats.map(x=>
