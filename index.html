@@ -221,12 +221,8 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
       <h3>Os meus potes</h3>
       <div id="potesTudo"></div>
       <button class="btn sec" id="addPote" style="margin-top:12px">+ Novo pote</button>
-      <div class="row2" style="margin-top:12px"><span class="k">Não alocado da mesada</span>
-        <span class="v tnum" id="naoAloc2">0 €</span></div>
     </div>
-
-    </div>
-</section>
+  </section>
 
   <!-- ============ MÊS ============ -->
 
@@ -247,6 +243,8 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
       <h3>Rendimento</h3>
       <label class="f"><span>Entrada mensal (€/mês)</span>
         <input type="number" id="cfRend" inputmode="decimal" step="1"></label>
+      <label class="f" style="margin-top:12px"><span>Dia do mês em que recebes (1 a 28)</span>
+        <input type="number" id="cfDia" inputmode="numeric" min="1" max="28"></label>
     </div>
 
 
@@ -259,34 +257,13 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 
 
     <div class="card">
-      <h3>Ciclo da mesada</h3>
-      <div class="row2"><span class="k">Sobras</span><span class="v ac tnum" id="sobDisp">0 €</span></div>
-      <div class="row2"><span class="k">Não alocado</span><span class="v" id="naoAloc">0 €</span></div>
-      <label class="f" style="margin-top:14px"><span>Dia do mês em que recebes (1 a 28)</span>
-        <input type="number" id="cfDia" inputmode="numeric" min="1" max="28"></label>
-    </div>
-
-
-    <div class="card">
-      <h3>Repartição mensal</h3>
-      <div id="planoRows"></div>
-    </div>
-
-
-    <div class="card">
-      <h3>Transferências automáticas a criar</h3>
+      <h3>Transferências a criar no banco</h3>
       <div id="autoList"></div>
-    </div>
-
-    <div class="card">
-      <h3>Potes sobre contas</h3>
-      <div id="reconcList"></div>
     </div>
   </section>
   <section id="v-mes" class="hide">
-    <button class="btn sec" id="irImportar" style="margin-bottom:12px">Importar extrato bancário</button>
     <div class="card">
-      <h3>Resumo</h3>
+      <h3>Estatísticas do mês</h3>
       <div id="mesResumo"></div>
     </div>
     <div class="card">
@@ -341,6 +318,12 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
     <div class="card" id="regrasCard"></div>
 
     <div class="card">
+      <h3>Estatísticas</h3>
+      <p class="meta">O que gastaste por categoria, a partir dos movimentos importados.</p>
+      <button class="btn sec" id="irStats" style="margin-top:10px">Abrir estatísticas</button>
+    </div>
+
+    <div class="card">
       <h3>Categorias</h3>
       <div class="chips" id="catChips"></div>
       <div class="inline">
@@ -385,7 +368,6 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
   </section>
 </div>
 
-<button id="fab" class="hide">+</button>
 
 <nav class="hide" id="nav"><div class="row">
   <button data-v="orc" class="on">
@@ -396,8 +378,8 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
     <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>Contas</button>
   <button data-v="patrim">
     <svg viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M5 20V9l7-5 7 5v11"/><path d="M10 20v-6h4v6"/></svg>Património</button>
-  <button data-v="mes">
-    <svg viewBox="0 0 24 24"><path d="M4 19V9"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M22 19H2"/></svg>Histórico</button>
+  <button data-v="import">
+    <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>Importar</button>
 </div></nav>
 
 <div id="sheets"></div>
@@ -405,7 +387,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 08:45";
+const BUILD="07/11 09:09";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -439,6 +421,10 @@ function load(){
   if(!Array.isArray(S.movs))S.movs=[];
   if(!Array.isArray(S.hist))S.hist=[];
   if(!S.icons)S.icons=DEF.icons;
+  if(!S.mig7){
+    S.contas.forEach(c=>{ if(c.tipo==="aforro"){ c.secundaria=true; c.oculta=false; } });
+    S.mig7=1;
+  }
   if(!S.mig2){
     const g=S.potes.find(x=>x.id==="gastar");
     if(g){ g.acum=true; if(g.aloc===250) g.aloc=0; }
@@ -495,7 +481,6 @@ function save(){ try{localStorage.setItem(K,JSON.stringify(S));}catch(e){toast("
 const E=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function fmt(n){return (Math.round(n*100)/100).toLocaleString("pt-PT",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";}
-function fmt(n){return Math.round(n).toLocaleString("pt-PT")+" €";}
 function fmtData(x){
   if(!x) return "—";
   const d=(x instanceof Date)?x:new Date(String(x).slice(0,10)+"T12:00:00");
@@ -543,7 +528,6 @@ function go(v){
   document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===activa));
   E("viewTitle").textContent=TITULOS[v];
   E("btnVoltar").classList.toggle("hide",DENTRO_MAIS.indexOf(v)<0);
-  E("fab").classList.toggle("hide",v!=="mes");
   window.scrollTo(0,0); render();
 }
 
@@ -590,23 +574,19 @@ function rPotes(){
     return '<div style="padding:14px 0;border-bottom:1px solid var(--line)">'
       +'<div style="display:flex;align-items:center;gap:11px">'
         +'<i style="width:9px;height:9px;border-radius:50%;background:'+p.c+';flex:0 0 9px"></i>'
-        +'<button data-pe="'+p.id+'" style="flex:1;min-width:0;text-align:left;display:flex;justify-content:space-between;align-items:baseline;gap:10px">'
+        +'<button type="button" data-pe="'+p.id+'" style="flex:1;min-width:0;text-align:left;display:flex;justify-content:space-between;align-items:baseline;gap:10px">'
           +'<span style="font-size:14.5px;font-weight:550">'+esc(p.n)+'</span>'
-          +'<b class="tnum" style="font-size:16px">'+fmt(p.saldo)+'</b></button>'
+          +'<b class="tnum" style="font-size:16px">'+fmt(p.saldo)+'<span style="opacity:.3;font-weight:400;margin-left:5px">\u203A</span></b></button>'
         +'<button data-pd="'+p.id+'" aria-label="Depositar ou retirar" style="width:34px;height:34px;flex:0 0 34px;'
           +'border-radius:10px;background:var(--bg3);color:var(--ac);font-size:17px">\u00B1</button>'
       +'</div>'
-      +'<div class="meta" style="margin:5px 0 0 20px">'+bits.join(" &middot; ")+'</div>'
+      +'<div class="meta" data-pe="'+p.id+'" style="margin:5px 0 0 20px;cursor:pointer">'+bits.join(" &middot; ")+'</div>'
       +(barra?'<div style="margin-left:20px">'+barra+'</div>':'')
       +'</div>';
   }).join("");
   E("potesTudo").querySelectorAll("[data-pe]").forEach(el=>el.onclick=()=>sheetPote(el.dataset.pe));
   E("potesTudo").querySelectorAll("[data-pd]").forEach(el=>el.onclick=()=>sheetAjuste(el.dataset.pd));
   E("addPote").onclick=()=>sheetPote(null);
-  const nao=sobras()-alocado();
-  const el=E("naoAloc2");
-  el.textContent=fmt(nao);
-  el.className="v tnum "+(nao<0?"bad":nao>0?"":"ac");
 }
 
 function rRollover(r){
@@ -626,20 +606,19 @@ function rRollover(r){
 
 function rOrc(){
   rRollover(checkRollover());
-  const so=sobras(), nao=so-alocado();
-  E("planoRows").innerHTML=
-    '<div class="row2"><span class="k">Entrada mensal</span><span class="v tnum">'+fmt(S.rendimento)+'</span></div>'
-    +'<div class="row2"><span class="k">− Despesas fixas</span><span class="v tnum">'+fmt(totalFixas())+'</span></div>'
-    +'<div class="row2"><span class="k">= Sobras</span><span class="v ac tnum">'+fmt(so)+'</span></div>'
-    +S.potes.filter(p=>!p.fix&&!p.semRep).map(p=>'<div class="row2"><span class="k">→ '+esc(p.n)+'</span><span class="v tnum">'+fmt(p.aloc)+'</span></div>').join("")
-    +'<div class="row2"><span class="k">Não alocado</span><span class="v tnum '+(nao<0?"bad":nao>0?"":"ac")+'">'+fmt(nao)+'</span></div>';
-
-  E("autoList").innerHTML=S.potes.filter(p=>!p.fix&&!p.semRep&&p.aloc>0).map(p=>{
-    const cheio=p.obj&&p.saldo>=p.obj;
-    return '<div class="row2"><span class="k">Dia '+S.dia+' &rarr; '+esc(p.n)+'</span><span class="v tnum'+(cheio?" bad":"")+'">'
-      +(cheio?"cancelar":fmt(p.aloc))+'</span></div>';
-  }).join("")||'<div class="empty">Define a repartição acima.</div>';
-  rReconc();
+  S.transfOk=S.transfOk||{};
+  const alvo=S.potes.filter(p=>!p.fix&&!p.semRep&&p.aloc>0);
+  E("autoList").innerHTML=alvo.length?alvo.map(p=>{
+    const c=conta(p.conta), feita=!!S.transfOk[p.id], cheio=p.obj&&p.saldo>=p.obj;
+    return '<div class="row2" style="align-items:center;gap:8px'+(feita?";opacity:.45":"")+'">'
+      +'<span class="k" style="flex:1;min-width:0">Dia '+S.dia+' \u2192 '+esc(p.n)+(c?' <span class="meta">('+esc(c.n)+')</span>':'')+'</span>'
+      +'<span class="v tnum'+(cheio?" bad":"")+'">'+(cheio?"objetivo cheio":fmt(p.aloc))+'</span>'
+      +'<button type="button" data-tok="'+p.id+'" aria-label="Marcar como criada" style="width:30px;height:30px;flex:0 0 30px;border-radius:9px;background:var(--bg3);color:'+(feita?"var(--ac)":"var(--mut)")+';font-size:14px">'+(feita?"\u2713":"\u25CB")+'</button>'
+      +'</div>';
+  }).join("")+'<div class="meta" style="margin-top:9px">Marca cada transfer\u00eancia depois de a criares no homebanking. Para mudar o valor ou a conta, edita o pote.</div>'
+    :'<div class="empty">Nenhum pote com valor mensal definido.</div>';
+  E("autoList").querySelectorAll("[data-tok]").forEach(el=>el.onclick=()=>{
+    const i=el.dataset.tok; if(S.transfOk[i]) delete S.transfOk[i]; else S.transfOk[i]=1; save(); rOrc();});
 }
 
 function rMes(){
@@ -671,10 +650,10 @@ function rPlano(){
   E("cfRend").oninput=e=>{S.rendimento=+e.target.value||0;save();rConfigLight();};
 
   E("fixasList").innerHTML='<div class="inline" style="margin-bottom:5px">'
-    +'<span class="meta" style="flex:1">descrição</span>'
-    +'<span class="meta" style="width:96px;max-width:96px">tipo</span>'
-    +'<span class="meta" style="width:84px;max-width:84px">€/mês</span>'
-    +'<span style="width:40px"></span></div>'
+    +'<span class="meta" style="flex:1;padding-left:2px">Descrição</span>'
+    +'<span class="meta" style="width:96px;max-width:96px;flex:0 0 96px">Tipo</span>'
+    +'<span class="meta" style="width:84px;max-width:84px;flex:0 0 84px;text-align:right">€/mês</span>'
+    +'<span style="width:34px;flex:0 0 34px"></span></div>'
     +S.fixas.map((f,i)=>
     '<div class="inline" style="margin-bottom:8px"><input type="text" value="'+esc(f.n)+'" data-fn="'+i+'" placeholder="Nome">'
     +'<select data-ff="'+i+'" style="max-width:96px"><option value="1"'+(f.f!==false?" selected":"")+'>Fixa</option>'
@@ -744,7 +723,7 @@ function sheetPote(id){
     h+='<label class="f"><span>Entra na repartição mensal da mesada?</span><select id="pRep">'
       +'<option value="1"'+(base.semRep?"":" selected")+'>Sim — recebe um valor todos os meses</option>'
       +'<option value="0"'+(base.semRep?" selected":"")+'>Não — só o que eu lá puser</option></select></label>'
-      +(base.semRep?'':'<label class="f"><span>Entra por mês (€/mês)</span><input type="number" inputmode="decimal" id="pA" value="'+(base.aloc||0)+'"></label>')
+      +'<label class="f" id="pAlocWrap"'+(base.semRep?' style="display:none"':'')+'><span>Entra por mês (€/mês)</span><input type="number" inputmode="decimal" id="pA" value="'+(base.aloc||0)+'"></label>'
       +'<label class="f"><span>Comportamento</span><select id="pAc">'
       +'<option value="1"'+(base.acum?" selected":"")+'>Acumula o que não gastas</option>'
       +'<option value="0"'+(base.acum?"":" selected")+'>Reinicia todos os meses</option></select></label>'
@@ -763,7 +742,7 @@ function sheetPote(id){
     E("pCor").querySelectorAll("[data-cor]").forEach(b=>b.onclick=()=>{cor=b.dataset.cor;pintaCor();});
   }
   pintaCor();
-  if(E("pRep")) E("pRep").onchange=e=>{ base.semRep=e.target.value==="0"; base.n=E("pN").value||base.n; base.c=cor; closeSheet(); sheetPote(id); };
+  if(E("pRep")) E("pRep").onchange=e=>{ base.semRep=e.target.value==="0"; const w=E("pAlocWrap"); if(w) w.style.display=base.semRep?"none":""; };
   E("pOk").onclick=()=>{
     const n=E("pN").value.trim();
     if(!n){toast("Dá-lhe um nome");return;}
@@ -804,10 +783,9 @@ function sheetPote(id){
 
 function rConfigLight(){
   const to=E("totOrc"); if(to)to.textContent=fmt(totalFixas());
-  const sd=E("sobDisp"); if(sd)sd.textContent=fmt(sobras());
   const nao=sobras()-alocado();
-  const el=E("naoAloc"); el.textContent=fmt(nao);
-  el.className="v tnum "+(nao<0?"bad":nao>0?"":"ac");
+  const el=E("naoAloc");
+  if(el){ el.textContent=fmt(nao); el.className="v tnum "+(nao<0?"bad":nao>0?"":"ac"); }
 }
 
 /* ================= PATRIMÓNIO E JUROS ================= */
@@ -1262,6 +1240,7 @@ function rHub(){
 }
 
 function rReconc(){
+  if(!E("reconcList")) return;
   const agora=new Date();
   const porConta={};
   S.potes.forEach(p=>{ if(p.conta){ porConta[p.conta]=(porConta[p.conta]||0)+(+p.saldo||0); } });
@@ -2074,7 +2053,7 @@ function bindBackup(){
 let pinBuf="";
 function showLock(){
   E("lock").classList.remove("hide");
-  E("app").classList.add("hide"); E("nav").classList.add("hide"); E("fab").classList.add("hide");
+  E("app").classList.add("hide"); E("nav").classList.add("hide");
   E("lockkp").innerHTML=keypadHTML("data-p").replace('data-p=","',"data-p=\"\" disabled style=\"opacity:.25\"");
   pinBuf=""; drawPins();
   E("lockkp").querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{
@@ -2093,13 +2072,12 @@ function drawPins(){
 
 /* ---------- arranque ---------- */
 function boot2(){
-  E("app").classList.remove("hide"); E("nav").classList.remove("hide"); E("fab").classList.remove("hide");
+  E("app").classList.remove("hide"); E("nav").classList.remove("hide");
   document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>go(b.dataset.v));
-  E("fab").onclick=sheetGasto;
   E("mesLbl").textContent="v"+BUILD;
   E("btnVoltar").onclick=()=>go(VOLTA_PARA||"orc");
   E("btnCfg").onclick=()=>{ if(view!=="config") VOLTA_PARA=view; go("config"); };
-  E("irImportar").onclick=()=>{ VOLTA_PARA="mes"; go("import"); };
+  E("irStats").onclick=()=>{ VOLTA_PARA="import"; go("mes"); };
 
   // tocar num campo numérico selecciona o que lá está, para o que escreveres substituir
   document.addEventListener("focusin",e=>{
