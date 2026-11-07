@@ -241,7 +241,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 
     <div class="card">
       <h3>Rendimento</h3>
-      <label class="f"><span>Entrada mensal (€)</span>
+      <label class="f"><span>Entrada mensal (€/mês)</span>
         <input type="number" id="cfRend" inputmode="decimal" step="1"></label>
     </div>
 
@@ -266,7 +266,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
       </div>
       <label class="f" style="margin-top:14px"><span>Pote em destaque no ecrã inicial</span>
         <select id="cfHero"></select></label>
-      <label class="f"><span>Dia do mês em que recebes</span>
+      <label class="f"><span>Dia do mês em que recebes (1 a 28)</span>
         <input type="number" id="cfDia" inputmode="numeric" min="1" max="28"></label>
     </div>
 
@@ -404,7 +404,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 01:40";
+const BUILD="07/11/2026 01:43";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -665,11 +665,16 @@ function rPlano(){
   E("cfRend").value=S.rendimento;
   E("cfRend").oninput=e=>{S.rendimento=+e.target.value||0;save();rConfigLight();};
 
-  E("fixasList").innerHTML=S.fixas.map((f,i)=>
+  E("fixasList").innerHTML='<div class="inline" style="margin-bottom:5px">'
+    +'<span class="meta" style="flex:1">descrição</span>'
+    +'<span class="meta" style="width:96px;max-width:96px">tipo</span>'
+    +'<span class="meta" style="width:84px;max-width:84px">€/mês</span>'
+    +'<span style="width:40px"></span></div>'
+    +S.fixas.map((f,i)=>
     '<div class="inline" style="margin-bottom:8px"><input type="text" value="'+esc(f.n)+'" data-fn="'+i+'" placeholder="Nome">'
     +'<select data-ff="'+i+'" style="max-width:96px"><option value="1"'+(f.f!==false?" selected":"")+'>Fixa</option>'
     +'<option value="0"'+(f.f===false?" selected":"")+'>Variável</option></select>'
-    +'<input type="number" inputmode="decimal" value="'+f.v+'" data-fv="'+i+'" style="max-width:84px">'
+    +'<input type="number" inputmode="decimal" value="'+f.v+'" data-fv="'+i+'" placeholder="€" style="max-width:84px">'
     +'<button class="x" data-fx="'+i+'">×</button></div>').join("")
     +'<div class="row2"><span class="k">Só as fixas</span><span class="v tnum" id="totFixo">'+fmt(totalFixo())+'</span></div>'
     +'<div class="row2"><span class="k">Orçamento total &rarr; Despesas Correntes</span><span class="v ac tnum" id="totOrc">'+fmt(totalFixas())+'</span></div>';
@@ -750,7 +755,7 @@ function sheetPote(id){
     +'<label class="f"><span>Nome</span><input type="text" id="pN" value="'+esc(base.n)+'"></label>'
     +'<label class="f"><span>Cor</span><div class="chips" id="pCor"></div></label>';
   if(!base.fix){
-    h+='<label class="f"><span>Entra por mês (€)</span><input type="number" inputmode="decimal" id="pA" value="'+(base.aloc||0)+'"></label>'
+    h+='<label class="f"><span>Entra por mês (€/mês)</span><input type="number" inputmode="decimal" id="pA" value="'+(base.aloc||0)+'"></label>'
       +'<label class="f"><span>Comportamento</span><select id="pAc">'
       +'<option value="1"'+(base.acum?" selected":"")+'>Acumula o que não gastas</option>'
       +'<option value="0"'+(base.acum?"":" selected")+'>Reinicia todos os meses</option></select></label>'
@@ -1215,6 +1220,8 @@ function blocoTaxas(c,rot){
   const emVigor=c.taxas.length?taxaAtual(c):null;
   return '<label class="f"><span>'+rot+'</span></label>'
     +'<div class="meta" style="margin:-4px 0 9px">Uma linha por alteração: a taxa vale a partir da data indicada.</div>'
+    +'<div class="inline" style="margin-bottom:5px"><span class="meta" style="max-width:92px;width:92px">%</span>'
+    +'<span class="meta" style="flex:1">a partir de</span><span style="width:40px"></span></div>'
     +'<div id="cTaxas">'
     +(c.taxas.length?c.taxas.map((x,i)=>
         '<div class="inline" style="margin-bottom:8px">'
@@ -1254,7 +1261,7 @@ function sheetConta(id){
         +'<option value="F"'+(c.serie!=="E"?" selected":"")+'>F — Euribor 3M, teto 2,5%</option>'
         +'<option value="E"'+(c.serie==="E"?" selected":"")+'>E — Euribor 3M + 1%, teto 3,5%</option></select></label>'
         +blocoTaxas(c,"Taxa base (%)")
-        +'<label class="f"><span>Prémio de permanência (pontos)</span><input type="number" inputmode="decimal" step="0.1" id="cP" value="'+(c.premio||0)+'"></label>';
+        +'<label class="f"><span>Prémio de permanência (p.p.)</span><input type="number" inputmode="decimal" step="0.1" id="cP" value="'+(c.premio||0)+'"></label>';
     }
     if(t==="remunerada"){
       h+=SEC("Como rende")
@@ -1263,7 +1270,7 @@ function sheetConta(id){
         +'<option value="diaria"'+(c.freq==="diaria"?" selected":"")+'>Diário</option>'
         +'<option value="mensal"'+(c.freq!=="diaria"?" selected":"")+'>Mensal</option></select></label>'
         +(c.freq!=="diaria"
-          ? '<label class="f"><span>Dia do mês em que o juro entra</span>'
+          ? '<label class="f"><span>Dia do mês em que o juro entra (1 a 28)</span>'
             +'<input type="number" inputmode="numeric" min="1" max="28" id="cDJ" value="'+(c.diaJuro||1)+'"></label>'
           : '')
         +'<label class="f"><span>Imposto retido na fonte?</span><select id="cR">'
@@ -1282,6 +1289,8 @@ function sheetConta(id){
     } else {
       h+=SEC(t==="aforro"?"Subscrições e resgates":"Entradas e levantamentos")
         +'<div class="meta" style="margin:-4px 0 9px">A primeira linha é o que já lá tinhas nessa data. Valor negativo para retirar.</div>'
+        +'<div class="inline" style="margin-bottom:5px"><span class="meta" style="max-width:92px;width:92px">€</span>'
+        +'<span class="meta" style="flex:1">data</span><span style="width:40px"></span></div>'
         +'<div id="cSubs">'
         +c.subs.map((x,i)=>
           '<div class="inline" style="margin-bottom:8px">'
