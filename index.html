@@ -419,7 +419,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 01:50";
+const BUILD="07/11/2026 01:51";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -642,6 +642,7 @@ function rPotes(){
 }
 
 function rOrc(){
+  const so=sobras(), nao=so-alocado();
   E("planoRows").innerHTML=
     '<div class="row2"><span class="k">Entrada mensal</span><span class="v tnum">'+fmt0(S.rendimento)+'</span></div>'
     +'<div class="row2"><span class="k">− Despesas fixas</span><span class="v tnum">'+fmt0(totalFixas())+'</span></div>'
@@ -653,7 +654,7 @@ function rOrc(){
     const cheio=p.obj&&p.saldo>=p.obj;
     return '<div class="row2"><span class="k">Dia '+S.dia+' &rarr; '+esc(p.n)+'</span><span class="v tnum'+(cheio?" bad":"")+'">'
       +(cheio?"cancelar":fmt0(p.aloc))+'</span></div>';
-  }).join("")||'<div class="empty">Define a repartição nos Ajustes.</div>';
+  }).join("")||'<div class="empty">Define a repartição acima.</div>';
   rReconc();
 }
 
