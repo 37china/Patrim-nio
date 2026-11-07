@@ -405,7 +405,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="06/11/2026 23:51";
+const BUILD="07/11/2026 01:26";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -1977,6 +1977,15 @@ function boot2(){
   document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>go(b.dataset.v));
   E("fab").onclick=sheetGasto;
   E("btnVoltar").onclick=()=>go("mais");
+
+  // tocar num campo numérico selecciona o que lá está, para o que escreveres substituir
+  document.addEventListener("focusin",e=>{
+    const t=e.target;
+    if(!t||t.tagName!=="INPUT") return;
+    const n = t.type==="number" || t.inputMode==="decimal" || t.inputMode==="numeric";
+    if(!n) return;
+    setTimeout(()=>{ try{ t.select(); }catch(err){} },0);
+  });
   bindBackup();
   go("inicio");
 }
