@@ -418,14 +418,14 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 07:52";
+const BUILD="07/11/2026 08:17";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
         {n:"Transportes",v:0,f:false},{n:"Saídas e restaurantes",v:0,f:false}],
  potes:[
   {id:"correntes",n:"Despesas Correntes",c:"var(--cor)",aloc:0,obj:null,saldo:0,acum:false,fix:true},
-  {id:"gastar",   n:"Gastar sem Culpa", c:"var(--ac)", aloc:0,  obj:null,saldo:0,acum:true},
+  {id:"gastar",   n:"Gastar sem Culpa", c:"var(--ac)", aloc:0,  obj:null,saldo:0,acum:true,semRep:true},
   {id:"investir", n:"Investimentos",    c:"var(--inv)",aloc:50, obj:null,saldo:0,acum:true}
  ],
  cats:["Alimentação","Transportes","Restaurantes","Saídas","Compras","Subscrições","Desporto","Saúde","Material","Outros"],
@@ -438,7 +438,7 @@ const DEF={
   {id:"cgd",n:"CGD",tipo:"ordem",saldo:0,data:null},
   {id:"tr",n:"Trade Republic — à ordem",tipo:"remunerada",subs:[],tanb:0,freq:"mensal",diaJuro:1,retencao:false},
   {id:"t212",n:"Trading 212 — à ordem",tipo:"remunerada",subs:[],tanb:0,freq:"diaria",horaJuro:"02:08",retencao:false},
-  {id:"aforro",n:"Certificados de Aforro",tipo:"aforro",serie:"F",subs:[],tanb:2.5,premio:0,oculta:true},
+  {id:"aforro",n:"Certificados de Aforro",tipo:"aforro",serie:"F",subs:[],tanb:2.5,premio:0},
   {id:"trinv",n:"Trade Republic — carteira",tipo:"investimento",valor:0,investido:0,data:null}
  ]
 };
@@ -471,8 +471,9 @@ function load(){
     }
   });
   if(!S.mig6){
-    const af=S.contas.find(x=>x.id==="aforro");
-    if(af&&af.oculta===undefined) af.oculta=true;
+    S.contas.forEach(x=>{ delete x.oculta; });
+    const g2=S.potes.find(x=>x.id==="gastar");
+    if(g2&&g2.semRep===undefined){ g2.semRep=true; g2.aloc=0; }
     const ob=S.potes.find(x=>x.id==="objetivos");
     const usadoOb=ob&&((+ob.saldo||0)!==0||S.movs.some(m=>m.pote==="objetivos"));
     if(ob&&!usadoOb) S.potes=S.potes.filter(x=>x.id!=="objetivos");
@@ -516,7 +517,7 @@ const pote=id=>S.potes.find(p=>p.id===id);
 const totalFixas=()=>S.fixas.reduce((a,f)=>a+(+f.v||0),0);
 const totalFixo=()=>S.fixas.filter(f=>f.f!==false).reduce((a,f)=>a+(+f.v||0),0);
 const sobras=()=>S.rendimento-totalFixas();
-const alocado=()=>S.potes.filter(p=>!p.fix).reduce((a,p)=>a+(+p.aloc||0),0);
+const alocado=()=>S.potes.filter(p=>!p.fix&&!p.semRep).reduce((a,p)=>a+(+p.aloc||0),0);
 function movsMes(k){return S.movs.filter(m=>m.d.slice(0,7)===k);}
 function gastosMes(k){return movsMes(k).filter(m=>m.cat!=="Ajuste");}
 function diasRestantes(){const n=new Date();const u=new Date(n.getFullYear(),n.getMonth()+1,0).getDate();return Math.max(1,u-n.getDate()+1);}
@@ -653,10 +654,10 @@ function rOrc(){
     '<div class="row2"><span class="k">Entrada mensal</span><span class="v tnum">'+fmt(S.rendimento)+'</span></div>'
     +'<div class="row2"><span class="k">− Despesas fixas</span><span class="v tnum">'+fmt(totalFixas())+'</span></div>'
     +'<div class="row2"><span class="k">= Sobras</span><span class="v ac tnum">'+fmt(so)+'</span></div>'
-    +S.potes.filter(p=>!p.fix).map(p=>'<div class="row2"><span class="k">→ '+esc(p.n)+'</span><span class="v tnum">'+fmt(p.aloc)+'</span></div>').join("")
+    +S.potes.filter(p=>!p.fix&&!p.semRep).map(p=>'<div class="row2"><span class="k">→ '+esc(p.n)+'</span><span class="v tnum">'+fmt(p.aloc)+'</span></div>').join("")
     +'<div class="row2"><span class="k">Não alocado</span><span class="v tnum '+(nao<0?"bad":nao>0?"":"ac")+'">'+fmt(nao)+'</span></div>';
 
-  E("autoList").innerHTML=S.potes.filter(p=>!p.fix&&p.aloc>0).map(p=>{
+  E("autoList").innerHTML=S.potes.filter(p=>!p.fix&&!p.semRep&&p.aloc>0).map(p=>{
     const cheio=p.obj&&p.saldo>=p.obj;
     return '<div class="row2"><span class="k">Dia '+S.dia+' &rarr; '+esc(p.n)+'</span><span class="v tnum'+(cheio?" bad":"")+'">'
       +(cheio?"cancelar":fmt(p.aloc))+'</span></div>';
@@ -715,7 +716,7 @@ function rPlano(){
   E("potesCfg").innerHTML=S.potes.map(p=>{
     const a=p.fix?totalFixas():(+p.aloc||0);
     const c=p.conta?conta(p.conta):null;
-    const bits=[p.fix?"do orçamento":(a>0?fmt(a)+"/mês":"sem repartição"),
+    const bits=[p.fix?"do orçamento":(p.semRep?"fora da repartição":(a>0?fmt(a)+"/mês":"sem valor definido")),
                 p.fix?"reinicia":(p.acum?"acumula":"reinicia")];
     if(p.obj) bits.push("objetivo "+fmt(p.obj));
     bits.push(c?esc(c.n):"sem conta");
@@ -779,7 +780,10 @@ function sheetPote(id){
     +'<label class="f"><span>Nome</span><input type="text" id="pN" value="'+esc(base.n)+'"></label>'
     +'<label class="f"><span>Cor</span><div class="chips" id="pCor"></div></label>';
   if(!base.fix){
-    h+='<label class="f"><span>Entra por mês (€/mês)</span><input type="number" inputmode="decimal" id="pA" value="'+(base.aloc||0)+'"></label>'
+    h+='<label class="f"><span>Entra na repartição mensal da mesada?</span><select id="pRep">'
+      +'<option value="1"'+(base.semRep?"":" selected")+'>Sim — recebe um valor todos os meses</option>'
+      +'<option value="0"'+(base.semRep?" selected":"")+'>Não — só o que eu lá puser</option></select></label>'
+      +(base.semRep?'':'<label class="f"><span>Entra por mês (€/mês)</span><input type="number" inputmode="decimal" id="pA" value="'+(base.aloc||0)+'"></label>')
       +'<label class="f"><span>Comportamento</span><select id="pAc">'
       +'<option value="1"'+(base.acum?" selected":"")+'>Acumula o que não gastas</option>'
       +'<option value="0"'+(base.acum?"":" selected")+'>Reinicia todos os meses</option></select></label>'
@@ -798,12 +802,15 @@ function sheetPote(id){
     E("pCor").querySelectorAll("[data-cor]").forEach(b=>b.onclick=()=>{cor=b.dataset.cor;pintaCor();});
   }
   pintaCor();
+  if(E("pRep")) E("pRep").onchange=e=>{ base.semRep=e.target.value==="0"; base.n=E("pN").value||base.n; base.c=cor; closeSheet(); sheetPote(id); };
   E("pOk").onclick=()=>{
     const n=E("pN").value.trim();
     if(!n){toast("Dá-lhe um nome");return;}
     const d={n:n,c:cor,conta:E("pC").value||null};
-    if(E("pA")){ d.aloc=+E("pA").value||0; d.acum=E("pAc").value==="1";
-      const o=+E("pO").value; d.obj=o>0?o:null; }
+    if(E("pRep")){ d.semRep=E("pRep").value==="0"; if(d.semRep) d.aloc=0; }
+    if(E("pA")) d.aloc=+E("pA").value||0;
+    if(E("pAc")) d.acum=E("pAc").value==="1";
+    if(E("pO")){ const o=+E("pO").value; d.obj=o>0?o:null; }
     if(nova){ S.potes.push(Object.assign(base,d)); }
     else { Object.assign(pote(id),d); }
     save(); closeSheet(); toast("Guardado"); rOrc(); rPlano();
@@ -1158,7 +1165,7 @@ function pintaGatePin(){
 }
 
 /* ---------- vista Património ---------- */
-let TICK=null, VER_OCULTAS=false;
+let TICK=null;
 function rPatrim(){
   if(mostraGate()) return;
   pintaOlho();
@@ -1187,10 +1194,7 @@ function pintaPatrim(){
   E("patSub").innerHTML="Juro acumulado <b>"+fmt4(P.liquido)+"</b>"
     +(P.pend>0.004?"<br>Ainda por entrar na conta: "+fmt(P.pend):"");
 
-  const visiveis=S.contas.filter(c=>!c.oculta||VER_OCULTAS);
-  const ocultas=S.contas.filter(c=>c.oculta);
-  const somaOcultas=ocultas.reduce((a,c)=>a+estado(c,agora).valor,0);
-  E("contasList").innerHTML=visiveis.map(c=>{
+  E("contasList").innerHTML=S.contas.map(c=>{
     const e=estado(c,agora);
     let meta=TIPOS[c.tipo];
     if(c.tipo==="remunerada"&&taxaAtual(c)) meta+=" · "+taxaAtual(c).toLocaleString("pt-PT")+"% TANB "
@@ -1202,17 +1206,10 @@ function pintaPatrim(){
       +'<div class="info"><div class="nm"><span>'+esc(c.n)+'</span><b class="tnum">'+fmt(e.valor)+'</b></div>'
       +'<div class="meta">'+meta+'</div></div>'
       +'<span style="color:var(--tx3);margin-left:8px">›</span></button>';
-  }).join("")
-  +(ocultas.length?'<button id="verOcultas" class="pote" style="width:100%;text-align:left;display:flex">'
-    +'<div class="info"><div class="nm"><span style="color:var(--tx2)">'
-    +(VER_OCULTAS?"Ocultar":"Contas ocultas")+' ('+ocultas.length+')</span>'
-    +'<b class="tnum" style="color:var(--tx2)">'+fmt(somaOcultas)+'</b></div>'
-    +'<div class="meta">contam para o total</div></div>'
-    +'<span style="color:var(--tx3);margin-left:8px">'+(VER_OCULTAS?"\u2303":"\u2304")+'</span></button>':'');
+  }).join("");
   E("contasList").querySelectorAll("[data-cc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.cc));
-  if(E("verOcultas")) E("verOcultas").onclick=()=>{VER_OCULTAS=!VER_OCULTAS;pintaPatrim();};
 
-  const rende=S.contas.filter(c=>!c.oculta&&(c.tipo==="aforro"||c.tipo==="remunerada")&&estado(c,agora).valor>0);
+  const rende=S.contas.filter(c=>(c.tipo==="aforro"||c.tipo==="remunerada")&&estado(c,agora).valor>0);
   E("rendeList").innerHTML=rende.length?rende.map(c=>{
     const e=estado(c,agora);
     const bruta=c.tipo==="aforro" ? taxaAtual(c)+(+c.premio||0) : taxaAtual(c);
@@ -1380,11 +1377,7 @@ function sheetConta(id){
           : '');
     }
 
-    h+=SEC("Nesta aba")
-      +'<label class="f"><span>Mostrar na lista do Património?</span><select id="cOcu">'
-      +'<option value="0"'+(c.oculta?"":" selected")+'>Sim</option>'
-      +'<option value="1"'+(c.oculta?" selected":"")+'>Não — esconder, mas contar para o total</option></select></label>'
-      +'<div style="height:8px"></div><button class="btn" id="cOk">Guardar</button>';
+    h+='<div style="height:8px"></div><button class="btn" id="cOk">Guardar</button>';
     if(!nova) h+='<button class="btn dang" id="cDel">Apagar conta</button>';
     openSheet(h);
     function resumo(){
@@ -1477,7 +1470,6 @@ function sheetConta(id){
     if(g("cF")) c.freq=g("cF").value;
     if(g("cDJ")){const v=+g("cDJ").value; c.diaJuro=(v>=1&&v<=28)?v:1;}
     if(g("cHJ")) c.horaJuro=g("cHJ").value||"00:00";
-    if(g("cOcu")) c.oculta=g("cOcu").value==="1";
     if(g("cSerie")) c.serie=g("cSerie").value;
     if(g("cP")) c.premio=+g("cP").value||0;
     if(g("cIrs")){ const v=+g("cIrs").value; c.irs=(v>0&&v<=100)?v:null; }
