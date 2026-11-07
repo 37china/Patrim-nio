@@ -1,0 +1,16 @@
+# Cópias de segurança e dados pessoais — nunca neste repositório.
+# Os dados da app vivem no telemóvel; aqui só entra o código.
+mesada-*.json
+mesada-movimentos-*.csv
+*.json
+*.csv
+*.xlsx
+*.pdf
+*.jpg
+*.jpeg
+*.heic
+*.png
+# excepções: os ícones da app
+!manifest.webmanifest
+!icon-180.png
+!icon-512.png
