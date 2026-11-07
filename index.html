@@ -414,7 +414,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 02:12";
+const BUILD="07/11/2026 02:15";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -1196,7 +1196,13 @@ function pintaPatrim(){
           +'<b class="tnum" style="font-size:13.5px;color:var(--ac);font-feature-settings:\'tnum\'">+'
           +fmt6(c.freq==="diaria"?(e.liquido||0):(e.pendLiq||0))+'</b></div>'
         : '')
-      +'<div class="meta" style="margin-top:7px">'+bruta.toLocaleString("pt-PT")+'% ao ano'
+      +((+c.irs>0)
+      ? '<div class="meta" style="margin-top:6px;display:flex;justify-content:space-between;gap:10px">'
+        +'<span>IRS '+(+c.irs).toLocaleString("pt-PT")+'%</span>'
+        +'<span>'+fmt((e.bruto||0)*c.irs/100)+'</span></div>'
+      : '')
+    +'<div class="meta" style="margin-top:7px">'+bruta.toLocaleString("pt-PT")+'% ao ano'
+    +((+c.irs>0)?' &rarr; '+(bruta*(1-c.irs/100)).toFixed(2).replace(".",",")+'% efetiva':'')
       +' · '+Math.floor(e.dias)+' dias'
       +(e.proxima?' · entra '+fmtData(e.proxima):'')
 
@@ -1293,8 +1299,14 @@ function sheetConta(id){
 
     // --- 3. taxa ---
     if(juros){
+      const temIrs=(+c.irs>0);
       h+=SEC("Taxa de juro")
-        +blocoTaxas(c, t==="aforro"?"Taxa base (%)":"TANB (% ao ano)");
+        +blocoTaxas(c, t==="aforro"?"Taxa base (%)":"TANB (% ao ano)")
+        +'<label class="f"><span>Os juros pagam IRS?</span><select id="cTemIrs">'
+        +'<option value="0"'+(temIrs?"":" selected")+'>Não</option>'
+        +'<option value="1"'+(temIrs?" selected":"")+'>Sim</option></select></label>'
+        +(temIrs?'<label class="f"><span>Taxa de IRS (%)</span>'
+          +'<input type="number" inputmode="decimal" step="0.1" id="cIrs" value="'+(+c.irs)+'"></label>':'');
     }
 
     // --- 4. o resto ---
@@ -1324,7 +1336,12 @@ function sheetConta(id){
         +'<div class="row2"><span class="k">Posto por ti</span><span class="v tnum" id="rPosto">'+fmt(e.investido)+'</span></div>'
         +'<div class="row2"><span class="k">Vale agora</span><span class="v ac tnum" id="rValor">'+fmt(e.valor)+'</span></div>'
         +'<div class="row2"><span class="k">Juro acumulado</span><span class="v tnum" id="rPend">'+fmt(e.pendLiq||0)+'</span></div>'
-        +'<div class="row2"><span class="k">Próxima entrada</span><span class="v" id="rProx">'+(e.proxima?fmtData(e.proxima):"—")+'</span></div>';
+        +'<div class="row2"><span class="k">Próxima entrada</span><span class="v" id="rProx">'+(e.proxima?fmtData(e.proxima):"—")+'</span></div>'
+        +((+c.irs>0)
+          ? '<div class="row2"><span class="k">IRS sobre o juro</span><span class="v tnum" id="rImp">'+fmt((e.bruto||0)*c.irs/100)+'</span></div>'
+            +'<div class="row2"><span class="k">Taxa efetiva</span><span class="v tnum" id="rEf">'
+            +(((t==="aforro"?taxaAtual(c)+(+c.premio||0):taxaAtual(c))*(1-c.irs/100)).toFixed(2).replace(".",",")+' %')+'</span></div>'
+          : '');
     }
 
     h+='<div style="height:8px"></div><button class="btn" id="cOk">Guardar</button>';
@@ -1338,9 +1355,17 @@ function sheetConta(id){
       E("rValor").textContent=fmt(x.valor||0);
       E("rPend").textContent=fmt(x.pendLiq||0);
       E("rProx").textContent=x.proxima?fmtData(x.proxima):"—";
+      if(E("rImp")&&+c.irs>0){
+        E("rImp").textContent=fmt((x.bruto||0)*c.irs/100);
+        const bt=(c.tipo==="aforro"?taxaAtual(c)+(+c.premio||0):taxaAtual(c));
+        E("rEf").textContent=(bt*(1-c.irs/100)).toFixed(2).replace(".",",")+" %";
+      }
       const tx=E("cTaxaEmVigor");
       if(tx) tx.textContent=(c.taxas&&c.taxas.length?taxaAtual(c):0).toLocaleString("pt-PT")+" %";
     }
+    if(E("cTemIrs")) E("cTemIrs").onchange=e=>{
+      colher(); c.irs = e.target.value==="1" ? (+c.irs>0?+c.irs:28) : null; form();
+    };
     E("cT").onchange=e=>{
       colher(); c.tipo=e.target.value;
       if(c.tipo==="aforro"){
@@ -1413,6 +1438,7 @@ function sheetConta(id){
     if(g("cDJ")){const v=+g("cDJ").value; c.diaJuro=(v>=1&&v<=28)?v:1;}
     if(g("cSerie")) c.serie=g("cSerie").value;
     if(g("cP")) c.premio=+g("cP").value||0;
+    if(g("cIrs")){ const v=+g("cIrs").value; c.irs=(v>0&&v<=100)?v:null; }
     if(E("cSubs")&&Array.isArray(c.subs)){
       E("cSubs").querySelectorAll("[data-sv]").forEach(el=>{c.subs[+el.dataset.sv].valor=+el.value||0;});
       E("cSubs").querySelectorAll("[data-sd]").forEach(el=>{c.subs[+el.dataset.sd].data=el.value||null;});
