@@ -404,7 +404,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 01:35";
+const BUILD="07/11/2026 01:37";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -667,8 +667,8 @@ function rPlano(){
 
   E("fixasList").innerHTML=S.fixas.map((f,i)=>
     '<div class="inline" style="margin-bottom:8px"><input type="text" value="'+esc(f.n)+'" data-fn="'+i+'" placeholder="Nome">'
-    +'<select data-ff="'+i+'" style="max-width:96px"><option value="1"'+(f.f!==false?" selected":"")+'>fixa</option>'
-    +'<option value="0"'+(f.f===false?" selected":"")+'>variável</option></select>'
+    +'<select data-ff="'+i+'" style="max-width:96px"><option value="1"'+(f.f!==false?" selected":"")+'>Fixa</option>'
+    +'<option value="0"'+(f.f===false?" selected":"")+'>Variável</option></select>'
     +'<input type="number" inputmode="decimal" value="'+f.v+'" data-fv="'+i+'" style="max-width:84px">'
     +'<button class="x" data-fx="'+i+'">×</button></div>').join("")
     +'<div class="row2"><span class="k">Só as fixas</span><span class="v tnum" id="totFixo">'+fmt(totalFixo())+'</span></div>'
