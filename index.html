@@ -419,7 +419,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 02:01";
+const BUILD="07/11/2026 02:06";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -1188,9 +1188,8 @@ function pintaPatrim(){
   const rende=S.contas.filter(c=>(c.tipo==="aforro"||c.tipo==="remunerada")&&estado(c,agora).valor>0);
   E("rendeList").innerHTML=rende.length?rende.map(c=>{
     const e=estado(c,agora);
-    const anoLiq=c.tipo==="aforro"
-      ? (taxaAtual(c)+(+c.premio||0))*(1-IRS_AFORRO/100)
-      : taxaAtual(c)*(c.retencao?1:(1-S.irs/100));
+    const bruta=c.tipo==="aforro" ? taxaAtual(c)+(+c.premio||0) : taxaAtual(c);
+    const anoLiq=bruta*(1-(c.tipo==="aforro"?IRS_AFORRO:S.irs)/100);
     const posto=e.investido||0;
     const ganho=e.valor-posto;
     const vive=(e.pendLiq||0)>0 || c.freq==="diaria";
@@ -1207,7 +1206,8 @@ function pintaPatrim(){
           +'<b class="tnum" style="font-size:13.5px;color:var(--ac);font-feature-settings:\'tnum\'">+'
           +fmt6(c.freq==="diaria"?(e.liquido||0):(e.pendLiq||0))+'</b></div>'
         : '')
-      +'<div class="meta" style="margin-top:7px">'+anoLiq.toFixed(2).replace(".",",")+'% líquido/ano'
+      +'<div class="meta" style="margin-top:7px">'+bruta.toLocaleString("pt-PT")+'% bruto &rarr; '
+      +anoLiq.toFixed(2).replace(".",",")+'% líquido/ano'
       +' · '+Math.floor(e.dias)+' dias'
       +(e.proxima?' · entra '+fmtData(e.proxima):'')
       +(e.reserva>0.004?' · reserva IRS '+fmt(e.reserva):'')
