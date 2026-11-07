@@ -46,7 +46,10 @@ header .mes{font-size:10.5px;color:var(--tx3);font-variant-numeric:tabular-nums;
 .hero .lbl{font-size:12.5px;color:var(--tx3);margin-bottom:10px}
 .hero .big{font-size:52px;font-weight:700;letter-spacing:-.04em;line-height:1;color:var(--ac)}
 .hero .big.neg{color:var(--bad)}
-.oculto{filter:blur(14px);user-select:none;pointer-events:none}
+.oculto{filter:blur(10px);user-select:none}
+.chkTaxa{display:flex;gap:9px;align-items:flex-start;margin-top:9px;padding:9px 10px;
+  background:var(--bg3);border-radius:10px;font-size:12px;color:var(--tx2);line-height:1.4}
+.chkTaxa input{width:17px;height:17px;flex:0 0 17px;margin:1px 0 0;accent-color:var(--ac2)}
 .hero .big,.hero .sub{transition:filter .18s ease}
 .hero .big small{font-size:26px;font-weight:600;opacity:.5;margin-left:2px}
 .hero .sub{margin-top:12px;font-size:13px;color:var(--tx2);line-height:1.5}
@@ -212,25 +215,6 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
     </div>
   </header>
 
-  <!-- ============ INÍCIO ============ -->
-  <section id="v-inicio">
-    <div id="rolloverBanner"></div>
-    <div class="card hero">
-      <div class="lbl" id="heroLbl">Disponível</div>
-      <div class="big tnum" id="heroVal">0<small>€</small></div>
-      <div class="bar"><i id="heroBar"></i></div>
-      <div class="sub" id="heroSub"></div>
-    </div>
-    <div class="card">
-      <h3 id="potesTit">Os potes</h3>
-      <div id="potesList"></div>
-    </div>
-    <div class="card">
-      <h3>Últimos movimentos</h3>
-      <div id="recentes"></div>
-    </div>
-  </section>
-
   <!-- ============ POTES ============ -->
   <section id="v-potes" class="hide">
 
@@ -238,16 +222,13 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
       <h3>Saldos acumulados</h3>
       <div id="potesFull"></div>
     </div>
-    <div class="card">
-      <label class="f" style="margin:0"><span>Pote em destaque no ecrã inicial</span>
-        <select id="cfHero"></select></label>
-    </div>
 </section>
 
   <!-- ============ MÊS ============ -->
 
   <!-- ============ ORÇAMENTO ============ -->
   <section id="v-orc" class="hide">
+    <div id="rolloverBanner"></div>
 
     <div class="card">
       <h3>Rendimento</h3>
@@ -418,7 +399,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 08:33";
+const BUILD="07/11/2026 08:43";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -438,7 +419,7 @@ const DEF={
   {id:"cgd",n:"CGD",tipo:"ordem",saldo:0,data:null},
   {id:"tr",n:"Trade Republic — à ordem",tipo:"remunerada",subs:[],tanb:0,freq:"mensal",diaJuro:1,irs:28},
   {id:"t212",n:"Trading 212 — à ordem",tipo:"remunerada",subs:[],tanb:0,freq:"diaria",horaJuro:"02:08",retencao:false},
-  {id:"aforro",n:"Certificados de Aforro",tipo:"aforro",serie:"F",subs:[],tanb:2.5,premio:0},
+  {id:"aforro",n:"Certificados de Aforro",tipo:"aforro",serie:"F",subs:[],tanb:2.5,premio:0,secundaria:true},
   {id:"trinv",n:"Trade Republic — carteira",tipo:"investimento",valor:0,investido:0,data:null}
  ]
 };
@@ -472,6 +453,8 @@ function load(){
   });
   if(!S.mig6){
     S.contas.forEach(x=>{ delete x.oculta; });
+    const af2=S.contas.find(x=>x.id==="aforro");
+    if(af2&&af2.secundaria===undefined) af2.secundaria=true;
     const g2=S.potes.find(x=>x.id==="gastar");
     if(g2&&g2.semRep===undefined){ g2.semRep=true; g2.aloc=0; }
     if(g2&&g2.n==="Gastar sem Culpa") g2.n="Poupança";
@@ -560,69 +543,13 @@ function go(v){
 
 /* ---------- render ---------- */
 function render(){
-  const r=checkRollover();
-  if(view==="inicio")rInicio(r);
+  if(view==="contas")rHub();
   if(view==="potes")rPotes();
   if(view==="orc"){rOrc();rPlano();}
   if(view==="mes")rMes();
   if(view==="patrim")rPatrim();
   if(view==="import"){rImport();rCats();}
   if(view==="config")rConfig();
-}
-
-function rInicio(r){
-  const b=E("rolloverBanner");
-  if(r.novo){
-    b.innerHTML='<div class="banner"><p>'+(r.primeiro
-      ? "Primeira utilização. Confirma o rendimento e as despesas fixas nos Ajustes, depois aplica a repartição deste mês."
-      : "Mudou o mês. Aplica a repartição de "+mesNome(r.k)+" para distribuir "+fmt(S.rendimento)+" pelos potes.")
-      +'</p><button class="btn" id="doRoll">Aplicar repartição de '+mesNome(r.k).split(" ")[0]+'</button></div>';
-    E("doRoll").onclick=()=>{
-      if(S.mesAtivo){S.hist.push({k:S.mesAtivo,gasto:gastosMes(S.mesAtivo).reduce((a,m)=>a+m.v,0)});}
-      aplicarMes(r.k); toast("Repartição aplicada"); render();
-    };
-  } else b.innerHTML="";
-
-  const g=pote(S.heroPote)||S.potes[0];
-  const sal=+g.saldo||0, al=g.fix?totalFixas():(+g.aloc||0);
-  const gasto=gastosMes(r.k).filter(m=>m.pote===g.id).reduce((a,m)=>a+m.v,0);
-  E("heroLbl").textContent=g.n;
-  const hv=E("heroVal");
-  hv.innerHTML=(Math.round(sal*100)/100).toLocaleString("pt-PT",{maximumFractionDigits:2})+"<small>€</small>";
-  hv.classList.toggle("neg",sal<0);
-  const pc=al>0?Math.min(100,Math.max(0,(gasto/al)*100)):0;
-  const hb=E("heroBar"); hb.style.width=pc+"%"; hb.classList.toggle("over",sal<0);
-  const d=diasRestantes();
-  if(g.acum){
-    E("heroSub").innerHTML="Acumula"+(al>0?" <b>+"+fmt(al)+"</b> por mês":" só com depósitos teus")
-      +"<br>Gastaste <b>"+fmt(gasto)+"</b> daqui este mês"
-      +(g.obj?"<br>Objetivo "+fmt(g.obj)+" &middot; faltam "+fmt(Math.max(0,g.obj-sal)):"");
-  } else {
-    E("heroSub").innerHTML= al>0
-      ? "Gastaste <b>"+fmt(gasto)+"</b> de "+fmt(al)+" &middot; sobram "+d+(d===1?" dia":" dias")
-        +"<br>Ritmo possível: <b>"+fmt(Math.max(0,sal)/d)+"</b> por dia"
-      : "Este pote não tem repartição definida. Vai aos Ajustes.";
-  }
-
-  E("potesTit").textContent="Os "+S.potes.length+" potes";
-  E("potesList").innerHTML=S.potes.map(p=>{
-    const a=p.fix?totalFixas():(+p.aloc||0);
-    let meta, barw=0, full=false;
-    if(p.obj){ barw=Math.min(100,(p.saldo/p.obj)*100); full=p.saldo>=p.obj;
-      meta=full?"Objetivo atingido &mdash; redirecciona a alocação":"Objetivo "+fmt(p.obj)+" &middot; "+Math.round(barw)+"%";
-    } else if(p.acum){ meta="+"+fmt(a)+" por mês"; barw=100;
-    } else { const gs=gastosMes(S.mesAtivo||mesKey(new Date())).filter(m=>m.pote===p.id).reduce((x,m)=>x+m.v,0);
-      barw=a>0?Math.min(100,(gs/a)*100):0; meta=fmt(gs)+" usados de "+fmt(a); }
-    return '<div class="pote"><div class="dot" style="background:'+p.c+'"></div>'
-      +'<div class="info"><div class="nm"><span>'+esc(p.n)+'</span><b class="tnum">'+fmt(p.saldo)+'</b></div>'
-      +'<div class="meta">'+meta+(full?' ✓':'')+'</div>'
-      +'<div class="pbar"><i style="width:'+barw+'%;background:'+p.c+';opacity:'+(full?1:.75)+'"></i></div>'
-      +'</div></div>';
-  }).join("");
-
-  const rec=S.movs.slice().sort((a,b)=>b.d.localeCompare(a.d)||b.id-a.id).slice(0,6);
-  E("recentes").innerHTML=rec.length?rec.map(movHTML).join("")
-    :'<div class="empty">Ainda não registaste nada.<br>Toca no + para o primeiro gasto.</div>';
 }
 
 function movHTML(m){
@@ -635,8 +562,6 @@ function movHTML(m){
 }
 
 function rPotes(){
-  E("cfHero").innerHTML=S.potes.map(p=>'<option value="'+p.id+'"'+(p.id===S.heroPote?" selected":"")+'>'+esc(p.n)+'</option>').join("");
-  E("cfHero").onchange=e=>{S.heroPote=e.target.value;save();};
   E("potesFull").innerHTML=S.potes.map(p=>{
     let meta=p.obj?("Objetivo "+fmt(p.obj)+" &middot; faltam "+fmt(Math.max(0,p.obj-p.saldo)))
       :(p.acum?"Acumula todos os meses":"Reinicia todos os meses");
@@ -651,7 +576,23 @@ function rPotes(){
 
 }
 
+function rRollover(r){
+  const b=E("rolloverBanner");
+  if(r.novo){
+    b.innerHTML='<div class="banner"><p>'+(r.primeiro
+      ? "Primeira utilização. Confirma o rendimento e as despesas fixas nos Ajustes, depois aplica a repartição deste mês."
+      : "Mudou o mês. Aplica a repartição de "+mesNome(r.k)+" para distribuir "+fmt(S.rendimento)+" pelos potes.")
+      +'</p><button class="btn" id="doRoll">Aplicar repartição de '+mesNome(r.k).split(" ")[0]+'</button></div>';
+    E("doRoll").onclick=()=>{
+      if(S.mesAtivo){S.hist.push({k:S.mesAtivo,gasto:gastosMes(S.mesAtivo).reduce((a,m)=>a+m.v,0)});}
+      aplicarMes(r.k); toast("Repartição aplicada"); render();
+    };
+  } else b.innerHTML="";
+
+}
+
 function rOrc(){
+  rRollover(checkRollover());
   const so=sobras(), nao=so-alocado();
   E("planoRows").innerHTML=
     '<div class="row2"><span class="k">Entrada mensal</span><span class="v tnum">'+fmt(S.rendimento)+'</span></div>'
@@ -879,10 +820,10 @@ function ultimaTaxa(c){
   return L.length?L[L.length-1]:null;
 }
 function taxaVelha(c){
-  const d=ultimaTaxa(c); if(!d) return false;
+  let d=ultimaTaxa(c); if(!d) return false;
+  if(c.taxaVistaEm&&c.taxaVistaEm>d) d=c.taxaVistaEm;
   const meses=(c.tipo==="aforro")?3:6;
-  const lim=addMeses(new Date(d+"T00:00:00"),meses);
-  return lim<new Date();
+  return addMeses(new Date(d+"T00:00:00"),meses)<new Date();
 }
 function dataConta(c){
   if(!c.data) return null;
@@ -1187,8 +1128,6 @@ function rPatrim(){
   if(TICK) clearInterval(TICK);
   TICK=setInterval(()=>{ if(view==="patrim") pintaPatrim(); else {clearInterval(TICK);TICK=null;} },1000);
 
-  E("addConta").onclick=()=>sheetConta(null);
-  E("contasList").querySelectorAll("[data-cc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.cc));
 }
 
 function pintaOlho(){
@@ -1204,15 +1143,10 @@ function pintaPatrim(){
   const hv=E("patTotal");
   hv.innerHTML=(Math.round(P.valor*100)/100).toLocaleString("pt-PT",{minimumFractionDigits:2,maximumFractionDigits:2})+"<small>€</small>";
   hv.classList.toggle("oculto",!!S.patOculto);
-  setTimeout(()=>{
-    ["rendeList","contasList"].forEach(id=>{
-      const n=E(id); if(n) n.classList.toggle("oculto",!!S.patOculto);
-    });
-  },0);
   E("patSub").innerHTML="Juro acumulado <b>"+fmt4(P.liquido)+"</b>"
     +(P.pend>0.004?"<br>Ainda por entrar na conta: "+fmt(P.pend):"");
 
-  E("contasList").innerHTML=S.contas.map(c=>{
+  E("longoList").innerHTML=S.contas.filter(c=>c.secundaria).map(c=>{
     const e=estado(c,agora);
     let meta=TIPOS[c.tipo];
     if(c.tipo==="remunerada"&&taxaAtual(c)) meta+=" · "+taxaAtual(c).toLocaleString("pt-PT")+"% TANB "
@@ -1224,10 +1158,11 @@ function pintaPatrim(){
       +'<div class="info"><div class="nm"><span>'+esc(c.n)+'</span><b class="tnum">'+fmt(e.valor)+'</b></div>'
       +'<div class="meta">'+meta+'</div></div>'
       +'<span style="color:var(--tx3);margin-left:8px">›</span></button>';
-  }).join("");
-  E("contasList").querySelectorAll("[data-cc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.cc));
+  }).join("")||'<div class="empty">Nada marcado como longo prazo.</div>';
+  E("longoList").querySelectorAll("[data-cc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.cc));
+  E("cardLongo").classList.toggle("hide",!S.contas.some(c=>c.secundaria));
 
-  const rende=S.contas.filter(c=>(c.tipo==="aforro"||c.tipo==="remunerada")&&estado(c,agora).valor>0);
+  const rende=S.contas.filter(c=>!c.secundaria&&(c.tipo==="aforro"||c.tipo==="remunerada")&&estado(c,agora).valor>0);
   E("rendeList").innerHTML=rende.length?rende.map(c=>{
     const e=estado(c,agora);
     const bruta=c.tipo==="aforro" ? taxaAtual(c)+(+c.premio||0) : taxaAtual(c);
@@ -1237,7 +1172,7 @@ function pintaPatrim(){
     return '<div style="padding:14px 0;border-bottom:1px solid var(--line)">'
       +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">'
         +'<span style="font-size:14.5px;font-weight:550">'+esc(c.n)+'</span>'
-        +'<b class="tnum" style="font-size:17px">'+fmt(e.valor)+'</b></div>'
+        +'<b class="tnum'+(c.ocultarValor?" oculto":"")+'" style="font-size:17px">'+fmt(e.valor)+'</b></div>'
       +'<div class="meta" style="margin-top:4px;display:flex;justify-content:space-between;gap:10px">'
         +'<span>na conta</span>'
         +'<span>'+fmt(posto)+' postos · '+(ganho>=0?"+":"")+fmt(ganho)+'</span></div>'
@@ -1249,13 +1184,14 @@ function pintaPatrim(){
         : '')
       +((+c.irs>0)
       ? '<div class="meta" style="margin-top:4px;display:flex;justify-content:space-between;gap:10px">'
-        +'<span>IRS '+(+c.irs).toLocaleString("pt-PT")+'%</span><span>&minus;'+fmt((e.bruto||0)*c.irs/100)+'</span></div>'
+        +'<span>IRS '+(+c.irs).toLocaleString("pt-PT")+'%</span>'
+        +'<span style="color:var(--bad)">&minus;'+fmt((e.bruto||0)*c.irs/100)+'</span></div>'
         +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:3px">'
         +'<span class="meta">Juro líquido</span>'
         +'<b class="tnum" style="font-size:13.5px">'+fmt((e.bruto||0)*(1-c.irs/100))+'</b></div>'
       : '')
-    +(taxaVelha(c)?'<div class="meta" style="margin-top:6px;color:var(--warn)">Taxa definida em '
-      +fmtData(ultimaTaxa(c))+' — confirma se ainda é esta</div>':'')
+    +(taxaVelha(c)?'<label class="chkTaxa"><input type="checkbox" data-vt="'+c.id+'">'
+      +'<span>Taxa de '+fmtData(ultimaTaxa(c))+'. Confirmei que continua esta.</span></label>':'')
     +'<div class="meta" style="margin-top:7px">'+bruta.toLocaleString("pt-PT")+'% ao ano'
     +((+c.irs>0)?' &rarr; '+(bruta*(1-c.irs/100)).toFixed(2).replace(".",",")+'% efetiva':'')
       +(e.proxima?' · entra '+fmtData(e.proxima):'')
@@ -1289,6 +1225,23 @@ function blocoTaxas(c,rot){
     +'<button class="btn sec" id="cTaxaAdd" style="margin-bottom:6px">+ Alteração de taxa</button>'
     +(emVigor!==null?'<div class="row2" style="margin-bottom:12px"><span class="k">Em vigor hoje</span><span class="v tnum" id="cTaxaEmVigor">'
       +emVigor.toLocaleString("pt-PT")+' %</span></div>':'<div style="height:12px"></div>');
+}
+
+function rHub(){
+  const agora=new Date();
+  E("hubList").innerHTML=S.contas.map(c=>{
+    const e=estado(c,agora);
+    const pots=S.potes.filter(p=>p.conta===c.id).map(p=>p.n).join(", ");
+    return '<button class="pote" data-hc="'+c.id+'" style="width:100%;text-align:left;display:flex">'
+      +'<div class="info"><div class="nm"><span>'+esc(c.n)+'</span>'
+      +'<b class="tnum'+(c.ocultarValor?" oculto":"")+'">'+fmt(e.valor)+'</b></div>'
+      +'<div class="meta">'+(c.proposito?esc(c.proposito):'<span style="color:var(--tx3)">sem finalidade definida</span>')
+      +(pots?' &middot; pote: '+esc(pots):'')
+      +(c.secundaria?' &middot; longo prazo':'')+'</div></div>'
+      +'<span style="color:var(--tx3);margin-left:8px">\u203A</span></button>';
+  }).join("");
+  E("hubList").querySelectorAll("[data-hc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.hc));
+  E("addConta").onclick=()=>sheetConta(null);
 }
 
 function rReconc(){
@@ -1399,7 +1352,19 @@ function sheetConta(id){
           : '');
     }
 
-    h+='<div style="height:8px"></div><button class="btn" id="cOk">Guardar</button>';
+    const potesAqui=S.potes.filter(x=>x.conta===c.id).map(x=>x.id);
+    h+=SEC("Para que serve")
+      +'<label class="f"><span>Finalidade</span><input type="text" id="cProp" value="'+esc(c.proposito||"")+'" placeholder="ex: gastos do dia a dia"></label>'
+      +'<label class="f"><span>Pote que vive aqui</span><select id="cPote"><option value="">—</option>'
+      +S.potes.map(x=>'<option value="'+x.id+'"'+(potesAqui.indexOf(x.id)>-1?" selected":"")+'>'+esc(x.n)+'</option>').join("")
+      +'</select></label>'
+      +'<label class="f"><span>Mostrar no Património</span><select id="cSec">'
+      +'<option value="0"'+(c.secundaria?"":" selected")+'>Em destaque, com as outras</option>'
+      +'<option value="1"'+(c.secundaria?" selected":"")+'>À parte, em Longo prazo</option></select></label>'
+      +'<label class="f"><span>Valor desta conta</span><select id="cOcuV">'
+      +'<option value="0"'+(c.ocultarValor?"":" selected")+'>Visível</option>'
+      +'<option value="1"'+(c.ocultarValor?" selected":"")+'>Desfocado</option></select></label>'
+      +'<div style="height:8px"></div><button class="btn" id="cOk">Guardar</button>';
     if(!nova) h+='<button class="btn dang" id="cDel">Apagar conta</button>';
     openSheet(h);
     function resumo(){
@@ -1456,6 +1421,8 @@ function sheetConta(id){
         c.tanb=taxaAtual(c);
       }
       if(nova) S.contas.push(c); else Object.assign(conta(id),c);
+      const pv=E("cPote")?E("cPote").value:null;
+      if(E("cPote")){ S.potes.forEach(x=>{ if(x.conta===c.id) x.conta=null; }); if(pv&&pote(pv)) pote(pv).conta=c.id; }
       save();closeSheet();toast("Guardado");pintaPatrim();
     };
     ["cDJ","cHJ","cP","cSerie","cVal","cInv","cS"].forEach(id=>{
@@ -1492,6 +1459,9 @@ function sheetConta(id){
     if(g("cF")) c.freq=g("cF").value;
     if(g("cDJ")){const v=+g("cDJ").value; c.diaJuro=(v>=1&&v<=28)?v:1;}
     if(g("cHJ")) c.horaJuro=g("cHJ").value||"00:00";
+    if(g("cProp")) c.proposito=g("cProp").value.trim();
+    if(g("cSec")) c.secundaria=g("cSec").value==="1";
+    if(g("cOcuV")) c.ocultarValor=g("cOcuV").value==="1";
     if(g("cSerie")) c.serie=g("cSerie").value;
     if(g("cP")) c.premio=+g("cP").value||0;
     if(g("cIrs")){ const v=+g("cIrs").value; c.irs=(v>0&&v<=100)?v:null; }

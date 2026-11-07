@@ -24,10 +24,10 @@ const vm=require("vm"); vm.createContext(sandbox);
 try{ vm.runInContext(js,sandbox,{filename:"app.js"}); }
 catch(e){ console.log("ARRANQUE FALHOU:",e.message); process.exit(1); }
 let maus=0;
-for(const f of ["rInicio","rPotes","rOrc","rPlano","rReconc","rMes","rCats","rConfig","rImport","pintaPatrim","rPatrim"]){
+for(const f of ["rPotes","rOrc","rHub","rRollover","rPlano","rReconc","rMes","rCats","rConfig","rImport","pintaPatrim","rPatrim"]){
   try{
     const fn=sandbox[f]; if(typeof fn!=="function"){console.log("  ausente:",f);maus++;continue;}
-    f==="rInicio" ? fn({novo:false,k:"2026-11"}) : fn();
+    fn();
     console.log("  ok    ",f);
   }catch(e){ console.log("  FALHA ",f,"->",e.constructor.name+":",e.message); maus++; }
 }
