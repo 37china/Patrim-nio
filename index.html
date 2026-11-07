@@ -404,7 +404,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 01:37";
+const BUILD="07/11/2026 01:40";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -1206,18 +1206,22 @@ function pintaPatrim(){
   +(semConta>0?'<div class="row2"><span class="k">Potes sem conta definida</span><span class="v tnum bad">'+fmt(semConta)+'</span></div>':"");
 }
 
+function SEC(t){
+  return '<div style="font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;'
+    +'color:var(--tx3);margin:20px 0 11px;padding-top:14px;border-top:1px solid var(--line)">'+esc(t)+'</div>';
+}
 function blocoTaxas(c,rot){
   c.taxas=c.taxas||[];
   const emVigor=c.taxas.length?taxaAtual(c):null;
-  return '<label class="f"><span>'+rot
-    +' <span style="color:var(--tx3);font-weight:400">· uma linha por alteração</span></span></label>'
+  return '<label class="f"><span>'+rot+'</span></label>'
+    +'<div class="meta" style="margin:-4px 0 9px">Uma linha por alteração: a taxa vale a partir da data indicada.</div>'
     +'<div id="cTaxas">'
     +(c.taxas.length?c.taxas.map((x,i)=>
         '<div class="inline" style="margin-bottom:8px">'
         +'<input type="number" inputmode="decimal" step="0.001" value="'+(x.v!==undefined?x.v:"")+'" data-tv="'+i+'" placeholder="%" style="max-width:92px">'
         +'<input type="date" value="'+(x.data||"")+'" data-td="'+i+'">'
         +'<button class="x" data-tx="'+i+'">×</button></div>').join("")
-      :'<div class="empty" style="padding:10px 0">Sem taxa definida.</div>')
+      :'')
     +'</div>'
     +'<button class="btn sec" id="cTaxaAdd" style="margin-bottom:6px">+ Alteração de taxa</button>'
     +(emVigor!==null?'<div class="row2" style="margin-bottom:12px"><span class="k">Em vigor hoje</span><span class="v tnum">'
@@ -1229,68 +1233,83 @@ function sheetConta(id){
   const c=nova?{id:"c"+Date.now(),n:"",tipo:"remunerada",saldo:0,data:new Date().toISOString().slice(0,10),tanb:0,freq:"mensal",retencao:false,serie:"F",premio:0,valor:0,investido:0}
              :Object.assign({},conta(id));
   function form(){
-    const t=c.tipo;
+    const t=c.tipo, hoje=new Date().toISOString().slice(0,10);
+    const juros = (t==="aforro"||t==="remunerada");
+    if(juros){
+      c.subs=c.subs||[]; c.taxas=c.taxas||[];
+      if(!c.subs.length)  c.subs=[{id:"s"+Date.now(),valor:0,data:hoje}];
+      if(!c.taxas.length) c.taxas=[{data:hoje,v:(t==="aforro"?2.5:0)}];
+    }
+
+    // --- 1. identidade ---
     let h='<h2>'+(nova?"Nova conta":esc(c.n||"Conta"))+'</h2>'
       +'<label class="f"><span>Nome</span><input type="text" id="cN" value="'+esc(c.n||"")+'"></label>'
       +'<label class="f"><span>Tipo</span><select id="cT">'
       +Object.keys(TIPOS).map(k=>'<option value="'+k+'"'+(k===t?" selected":"")+'>'+TIPOS[k]+'</option>').join("")+'</select></label>';
-    if(t==="investimento"){
-      h+='<label class="f"><span>Valor de mercado hoje (€)</span><input type="number" inputmode="decimal" id="cVal" value="'+(c.valor||0)+'"></label>'
-        +'<label class="f"><span>Total investido (€)</span><input type="number" inputmode="decimal" id="cInv" value="'+(c.investido||0)+'"></label>';
-    } else if(t!=="aforro"&&t!=="remunerada"){
-      h+='<label class="f"><span>Saldo (€)</span><input type="number" inputmode="decimal" id="cS" value="'+(c.saldo||0)+'"></label>';
-    }
-    if(t==="aforro"||t==="remunerada"){
-      c.subs=c.subs||[];
-      const e=estado(c,new Date());
-      h+='<label class="f"><span>'+(t==="aforro"?"Subscrições e resgates":"Entradas e levantamentos")
-        +' <span style="color:var(--tx3);font-weight:400">· use − para tirar</span></span></label><div id="cSubs">'
-        +(c.subs.length?c.subs.map((x,i)=>
-          (i===0?'<div class="meta" style="margin:2px 0 5px">saldo inicial — o que já lá tinhas nessa data</div>':'')
-          +'<div class="inline" style="margin-bottom:8px">'
-          +'<input type="number" inputmode="decimal" value="'+(x.valor||0)+'" data-sv="'+i+'" placeholder="€" style="max-width:92px">'
-          +'<input type="date" value="'+(x.data||"")+'" data-sd="'+i+'">'
-          +'<button class="x" data-sx="'+i+'">×</button></div>').join("")
-          :'<div class="empty" style="padding:10px 0">Sem movimentos.</div>')
-        +'</div>'
-        +'<button class="btn sec" id="cSubAdd" style="margin-bottom:14px">+ Movimento</button>'
-        +'<div class="row2"><span class="k">Posto por ti</span><span class="v tnum">'+fmt(e.investido)+'</span></div>'
-        +'<div class="row2"><span class="k">Vale agora</span><span class="v ac tnum">'+fmt(e.valor)+'</span></div>';
+
+    // --- 2. como rende ---
+    if(t==="aforro"){
+      h+=SEC("Como rende")
+        +'<label class="f"><span>Série</span><select id="cSerie">'
+        +'<option value="F"'+(c.serie!=="E"?" selected":"")+'>F — Euribor 3M, teto 2,5%</option>'
+        +'<option value="E"'+(c.serie==="E"?" selected":"")+'>E — Euribor 3M + 1%, teto 3,5%</option></select></label>'
+        +blocoTaxas(c,"Taxa base (%)")
+        +'<label class="f"><span>Prémio de permanência (pontos)</span><input type="number" inputmode="decimal" step="0.1" id="cP" value="'+(c.premio||0)+'"></label>';
     }
     if(t==="remunerada"){
-      h+=blocoTaxas(c,"TANB (% bruta ao ano)")
+      h+=SEC("Como rende")
+        +blocoTaxas(c,"TANB (% bruta ao ano)")
         +'<label class="f"><span>Pagamento de juros</span><select id="cF">'
         +'<option value="diaria"'+(c.freq==="diaria"?" selected":"")+'>Diário</option>'
         +'<option value="mensal"'+(c.freq!=="diaria"?" selected":"")+'>Mensal</option></select></label>'
         +(c.freq!=="diaria"
-          ? '<label class="f"><span>Dia do mês em que o juro entra na conta</span>'
+          ? '<label class="f"><span>Dia do mês em que o juro entra</span>'
             +'<input type="number" inputmode="numeric" min="1" max="28" id="cDJ" value="'+(c.diaJuro||1)+'"></label>'
           : '')
         +'<label class="f"><span>Imposto retido na fonte?</span><select id="cR">'
         +'<option value="0"'+(c.retencao?"":" selected")+'>Não — guardo reserva para o IRS</option>'
         +'<option value="1"'+(c.retencao?" selected":"")+'>Sim — já vem líquido</option></select></label>';
     }
-    if(t==="aforro"){
-      h+='<label class="f"><span>Série</span><select id="cSerie">'
-        +'<option value="F"'+(c.serie!=="E"?" selected":"")+'>F — Euribor 3M, teto 2,5%</option>'
-        +'<option value="E"'+(c.serie==="E"?" selected":"")+'>E — Euribor 3M + 1%, teto 3,5%</option></select></label>'
-        +blocoTaxas(c,"Taxa base (%)")
-        +'<label class="f"><span>Prémio de permanência (pontos)</span><input type="number" inputmode="decimal" step="0.1" id="cP" value="'+(c.premio||0)+'"></label>';
+
+    // --- 3. dinheiro ---
+    if(t==="investimento"){
+      h+=SEC("Dinheiro")
+        +'<label class="f"><span>Valor de mercado hoje (€)</span><input type="number" inputmode="decimal" id="cVal" value="'+(c.valor||0)+'"></label>'
+        +'<label class="f"><span>Total investido (€)</span><input type="number" inputmode="decimal" id="cInv" value="'+(c.investido||0)+'"></label>';
+    } else if(!juros){
+      h+=SEC("Dinheiro")
+        +'<label class="f"><span>Saldo (€)</span><input type="number" inputmode="decimal" id="cS" value="'+(c.saldo||0)+'"></label>';
+    } else {
+      h+=SEC(t==="aforro"?"Subscrições e resgates":"Entradas e levantamentos")
+        +'<div class="meta" style="margin:-4px 0 9px">A primeira linha é o que já lá tinhas nessa data. Valor negativo para retirar.</div>'
+        +'<div id="cSubs">'
+        +c.subs.map((x,i)=>
+          '<div class="inline" style="margin-bottom:8px">'
+          +'<input type="number" inputmode="decimal" value="'+(x.valor||0)+'" data-sv="'+i+'" placeholder="€" style="max-width:92px">'
+          +'<input type="date" value="'+(x.data||"")+'" data-sd="'+i+'">'
+          +'<button class="x" data-sx="'+i+'">×</button></div>').join("")
+        +'</div><button class="btn sec" id="cSubAdd">+ Movimento</button>';
     }
-    h+='<button class="btn" id="cOk">Guardar</button>';
+
+    // --- 4. resultado ---
+    if(juros){
+      const e=estado(c,new Date());
+      h+=SEC("Resultado")
+        +'<div class="row2"><span class="k">Posto por ti</span><span class="v tnum">'+fmt(e.investido)+'</span></div>'
+        +'<div class="row2"><span class="k">Vale agora</span><span class="v ac tnum">'+fmt(e.valor)+'</span></div>'
+        +((e.pendLiq||0)>0?'<div class="row2"><span class="k">Por creditar</span><span class="v tnum">'+fmt(e.pendLiq)+'</span></div>':'')
+        +(e.proxima?'<div class="row2"><span class="k">Próxima entrada</span><span class="v">'+fmtData(e.proxima)+'</span></div>':'');
+    }
+
+    h+='<div style="height:8px"></div><button class="btn" id="cOk">Guardar</button>';
     if(!nova) h+='<button class="btn dang" id="cDel">Apagar conta</button>';
     openSheet(h);
     E("cT").onchange=e=>{
       colher(); c.tipo=e.target.value;
-      const hoje=new Date().toISOString().slice(0,10);
       if(c.tipo==="aforro"){
         if(!c.n.trim()) c.n="Certificados de Aforro";
         c.serie=c.serie||"F"; c.premio=+c.premio||0;
-        if(!(c.taxas||[]).length) c.taxas=[{data:hoje,v:2.5}];
-      }
-      if((c.tipo==="aforro"||c.tipo==="remunerada")){
-        if(!(c.subs||[]).length) c.subs=[{id:"s"+Date.now(),valor:0,data:hoje}];
-        if(!(c.taxas||[]).length) c.taxas=[{data:hoje,v:0}];
+        if((c.taxas||[]).length===1 && !(+c.taxas[0].v>0)) c.taxas[0].v=2.5;
       }
       form();
     };
