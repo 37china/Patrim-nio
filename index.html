@@ -34,7 +34,8 @@ button{background:none;border:none;cursor:pointer;padding:0}
 #app{padding:0 16px calc(84px + var(--sab));max-width:560px;margin:0 auto}
 header{display:flex;align-items:baseline;justify-content:space-between;padding:18px 0 14px}
 header h1{font-size:19px;font-weight:650;letter-spacing:-.02em;margin:0}
-header .mes{font-size:13px;color:var(--tx3);text-transform:capitalize}
+header .mes{font-size:10.5px;color:var(--tx3);font-variant-numeric:tabular-nums;
+  letter-spacing:.01em;text-align:right;line-height:1.25;max-width:84px}
 
 /* ---------- cards ---------- */
 .card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:12px}
@@ -404,7 +405,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 01:43";
+const BUILD="07/11/2026 01:44";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -536,7 +537,6 @@ function go(v){
 /* ---------- render ---------- */
 function render(){
   const r=checkRollover();
-  E("mesLbl").textContent=mesNome(r.k);
   if(view==="inicio")rInicio(r);
   if(view==="potes"){rPotes();rPlano();}
   if(view==="mes")rMes();
@@ -1997,6 +1997,7 @@ function boot2(){
   E("app").classList.remove("hide"); E("nav").classList.remove("hide"); E("fab").classList.remove("hide");
   document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>go(b.dataset.v));
   E("fab").onclick=sheetGasto;
+  E("mesLbl").textContent="v"+BUILD;
   E("btnVoltar").onclick=()=>go(VOLTA_PARA||"inicio");
   E("btnCfg").onclick=()=>{ if(view!=="config") VOLTA_PARA=view; go("config"); };
   E("irImportar").onclick=()=>{ VOLTA_PARA="mes"; go("import"); };
