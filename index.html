@@ -141,12 +141,12 @@ textarea{width:100%;padding:12px 13px;border-radius:11px;background:var(--bg3);
   border:1px solid var(--line);font-size:14px;resize:vertical;line-height:1.4;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 textarea:focus{outline:none;border-color:var(--ac2)}
-input[type=text],input[type=number],input[type=password],input[type=date],select{width:100%;padding:12px 13px;
+input[type=text],input[type=number],input[type=password],input[type=date],input[type=time],select{width:100%;padding:12px 13px;
   border-radius:11px;background:var(--bg3);border:1px solid var(--line);font-size:15.5px;
   -webkit-appearance:none;appearance:none;color:var(--tx)}
-input[type=date]{min-width:0;min-height:46px;line-height:1.2;
+input[type=date],input[type=time]{min-width:0;min-height:46px;line-height:1.2;
   font-variant-numeric:tabular-nums;text-align:left}
-input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0;color:var(--tx)}
+input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and-time-value{text-align:left;margin:0;color:var(--tx)}
 input[type=date]::-webkit-calendar-picker-indicator{opacity:.55;filter:invert(1)}
 select{background-image:none}
 input:focus,select:focus{outline:none;border-color:var(--ac2)}
@@ -419,7 +419,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="07/11/2026 02:17";
+const BUILD="07/11/2026 02:28";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -439,7 +439,7 @@ const DEF={
   {id:"revolut",n:"Revolut",tipo:"ordem",saldo:0,data:null},
   {id:"cgd",n:"CGD",tipo:"ordem",saldo:0,data:null},
   {id:"tr",n:"Trade Republic — à ordem",tipo:"remunerada",subs:[],tanb:0,freq:"mensal",diaJuro:1,retencao:false},
-  {id:"t212",n:"Trading 212 — à ordem",tipo:"remunerada",subs:[],tanb:0,freq:"diaria",retencao:false},
+  {id:"t212",n:"Trading 212 — à ordem",tipo:"remunerada",subs:[],tanb:0,freq:"diaria",horaJuro:"02:08",retencao:false},
   {id:"aforro",n:"Certificados de Aforro",tipo:"aforro",serie:"F",subs:[],tanb:2.5,premio:0},
   {id:"trinv",n:"Trade Republic — carteira",tipo:"investimento",valor:0,investido:0,data:null}
  ]
@@ -951,8 +951,18 @@ function estadoRemunerada(c,agora){
     marcos.push({t:d,tipo:"taxa",v:+x.v});
   });
   let r=taxaEm(c,inicio)/100;
-  const mensal = c.freq!=="diaria" && +c.diaJuro>=1;
-  if(mensal){
+  if(c.freq==="diaria"){
+    const hm=String(c.horaJuro||"00:00").split(":");
+    const hh=Math.min(23,Math.max(0,+hm[0]||0)), mi=Math.min(59,Math.max(0,+hm[1]||0));
+    let pg=new Date(inicio.getFullYear(),inicio.getMonth(),inicio.getDate(),hh,mi,0,0);
+    if(pg<=inicio){ pg=new Date(pg); pg.setDate(pg.getDate()+1); }
+    let n=0;
+    while(pg<=agora && n<20000){
+      marcos.push({t:new Date(pg),tipo:"pag"});
+      pg=new Date(pg); pg.setDate(pg.getDate()+1); n++;
+    }
+    o.proxima=pg;
+  } else if(+c.diaJuro>=1){
     const dia=Math.min(28,Math.max(1,+c.diaJuro));
     let pg=new Date(inicio.getFullYear(),inicio.getMonth(),dia,0,0,0,0);
     if(pg<=inicio) pg=addMeses(pg,1);
@@ -966,10 +976,7 @@ function estadoRemunerada(c,agora){
   let cap=0, creditado=0, retido=0, acum=0, posto=0, ult=inicio;
   function correr(ate){
     const d=(ate-ult)/86400000;
-    if(d>0&&cap>0){
-      if(c.freq==="diaria"){ const g=cap*(Math.pow(1+r/365,d)-1); cap+=g; creditado+=g; }
-      else { acum+=cap*r*d/365; }
-    }
+    if(d>0&&cap>0) acum+=cap*r*d/365;
     ult=ate;
   }
   marcos.forEach(m=>{
@@ -1180,7 +1187,7 @@ function pintaPatrim(){
     const e=estado(c,agora);
     let meta=TIPOS[c.tipo];
     if(c.tipo==="remunerada"&&taxaAtual(c)) meta+=" · "+taxaAtual(c).toLocaleString("pt-PT")+"% TANB "
-      +(c.freq==="diaria"?"diária":"mensal, dia "+(c.diaJuro||1));
+      +(c.freq==="diaria"?("diária às "+(c.horaJuro||"00:00")):("mensal, dia "+(c.diaJuro||1)));
     if(c.tipo==="aforro") meta="Série "+(c.serie||"F")+" · investido "+fmt(e.investido||0)
       +" · "+(taxaAtual(c)+(+c.premio||0)).toLocaleString("pt-PT")+"%";
     if(c.tipo==="investimento"&&e.ganho) meta+=" · "+(e.ganho>=0?"+":"")+fmt(e.ganho);
@@ -1332,7 +1339,8 @@ function sheetConta(id){
         +(c.freq!=="diaria"
           ? '<label class="f"><span>Dia do mês em que o juro entra (1 a 28)</span>'
             +'<input type="number" inputmode="numeric" min="1" max="28" id="cDJ" value="'+(c.diaJuro||1)+'"></label>'
-          : '')
+          : '<label class="f"><span>Hora a que o juro entra</span>'
+            +'<input type="time" id="cHJ" value="'+(c.horaJuro||"00:00")+'"></label>')
 ;
     }
     if(t==="aforro"){
@@ -1417,7 +1425,7 @@ function sheetConta(id){
       if(nova) S.contas.push(c); else Object.assign(conta(id),c);
       save();closeSheet();toast("Guardado");pintaPatrim();
     };
-    ["cDJ","cP","cSerie","cVal","cInv","cS"].forEach(id=>{
+    ["cDJ","cHJ","cP","cSerie","cVal","cInv","cS"].forEach(id=>{
       const el=E(id); if(el) el.onchange=resumo;
     });
     if(!nova) E("cDel").onclick=()=>{
@@ -1450,6 +1458,7 @@ function sheetConta(id){
     if(g("cTx")) c.tanb=+g("cTx").value||0;
     if(g("cF")) c.freq=g("cF").value;
     if(g("cDJ")){const v=+g("cDJ").value; c.diaJuro=(v>=1&&v<=28)?v:1;}
+    if(g("cHJ")) c.horaJuro=g("cHJ").value||"00:00";
     if(g("cSerie")) c.serie=g("cSerie").value;
     if(g("cP")) c.premio=+g("cP").value||0;
     if(g("cIrs")){ const v=+g("cIrs").value; c.irs=(v>0&&v<=100)?v:null; }
