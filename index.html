@@ -220,7 +220,10 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
     <div class="card">
       <h3>Os meus potes</h3>
       <div id="potesTudo"></div>
-      <button class="btn sec" id="addPote" style="margin-top:12px">+ Novo pote</button>
+      <div class="inline" style="margin-top:12px">
+        <button class="btn sec" id="addPote" style="margin:0">+ Novo pote</button>
+        <button class="btn sec" id="ordPote" style="margin:0;max-width:130px">Reordenar</button>
+      </div>
     </div>
   </section>
 
@@ -387,7 +390,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="09/11 08:36";
+const BUILD="09/11 09:11";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -492,6 +495,8 @@ const MESES=["janeiro","fevereiro","março","abril","maio","junho","julho","agos
 function mesNome(k){const[a,m]=k.split("-");return MESES[+m-1]+" "+a;}
 const pote=id=>S.potes.find(p=>p.id===id);
 const totalFixas=()=>S.fixas.reduce((a,f)=>a+(+f.v||0),0);
+const somaFixas=()=>S.fixas.filter(f=>f.f!==false).reduce((a,f)=>a+(+f.v||0),0);
+const somaVars=()=>S.fixas.filter(f=>f.f===false).reduce((a,f)=>a+(+f.v||0),0);
 const totalFixo=()=>S.fixas.filter(f=>f.f!==false).reduce((a,f)=>a+(+f.v||0),0);
 const sobras=()=>S.rendimento-totalFixas();
 const alocado=()=>S.potes.filter(p=>!p.fix&&!p.semRep).reduce((a,p)=>a+(+p.aloc||0),0);
@@ -551,8 +556,10 @@ function movHTML(m){
     +'<div class="v'+(m.v<0?" pos":"")+'">'+(m.v<0?"+":"−")+fmt(Math.abs(m.v))+'</div></div>';
 }
 
+let ORD_POTES=false;
 function rPotes(){
   const agora=mesKey(new Date());
+  const N=S.potes.length;
   E("potesTudo").innerHTML=S.potes.map(p=>{
     const a=p.fix?totalFixas():(+p.aloc||0);
     const c=p.conta?conta(p.conta):null;
@@ -577,16 +584,32 @@ function rPotes(){
         +'<button type="button" data-pe="'+p.id+'" style="flex:1;min-width:0;text-align:left;display:flex;justify-content:space-between;align-items:baseline;gap:10px">'
           +'<span style="font-size:14.5px;font-weight:550">'+esc(p.n)+'</span>'
           +'<b class="tnum" style="font-size:16px">'+fmt(p.saldo)+'<span style="opacity:.3;font-weight:400;margin-left:5px">\u203A</span></b></button>'
-        +'<button data-pd="'+p.id+'" aria-label="Depositar ou retirar" style="width:34px;height:34px;flex:0 0 34px;'
-          +'border-radius:10px;background:var(--bg3);color:var(--ac);font-size:17px">\u00B1</button>'
+        +(ORD_POTES
+          ? '<button type="button" data-pu="'+p.id+'" aria-label="Subir" style="width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px">\u2191</button>'
+            +'<button type="button" data-pdn="'+p.id+'" aria-label="Descer" style="width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px">\u2193</button>'
+          : '<button type="button" data-pd="'+p.id+'" aria-label="Depositar ou retirar" style="width:34px;height:34px;flex:0 0 34px;'
+            +'border-radius:10px;background:var(--bg3);color:var(--ac);font-size:17px">\u00B1</button>')
       +'</div>'
       +'<div class="meta" data-pe="'+p.id+'" style="margin:5px 0 0 20px;cursor:pointer">'+bits.join(" &middot; ")+'</div>'
       +(barra?'<div style="margin-left:20px">'+barra+'</div>':'')
       +'</div>';
   }).join("");
-  E("potesTudo").querySelectorAll("[data-pe]").forEach(el=>el.onclick=()=>sheetPote(el.dataset.pe));
-  E("potesTudo").querySelectorAll("[data-pd]").forEach(el=>el.onclick=()=>sheetAjuste(el.dataset.pd));
+  if(!ORD_POTES){
+    E("potesTudo").querySelectorAll("[data-pe]").forEach(el=>el.onclick=()=>sheetPote(el.dataset.pe));
+    E("potesTudo").querySelectorAll("[data-pd]").forEach(el=>el.onclick=()=>sheetAjuste(el.dataset.pd));
+  }
+  function mexe(id,d){
+    const i=S.potes.findIndex(x=>x.id===id), j=i+d;
+    if(i<0||j<0||j>=S.potes.length) return;
+    const t=S.potes[i]; S.potes[i]=S.potes[j]; S.potes[j]=t;
+    save(); rPotes();
+  }
+  E("potesTudo").querySelectorAll("[data-pu]").forEach(el=>el.onclick=()=>mexe(el.dataset.pu,-1));
+  E("potesTudo").querySelectorAll("[data-pdn]").forEach(el=>el.onclick=()=>mexe(el.dataset.pdn,1));
   E("addPote").onclick=()=>sheetPote(null);
+  E("addPote").style.display=ORD_POTES?"none":"";
+  E("ordPote").textContent=ORD_POTES?"Concluir":"Reordenar";
+  E("ordPote").onclick=()=>{ ORD_POTES=!ORD_POTES; rPotes(); };
 }
 
 function rRollover(r){
@@ -647,7 +670,9 @@ function rPlano(){
     +'<option value="0"'+(f.f===false?" selected":"")+'>Variável</option></select>'
     +'<input type="number" inputmode="decimal" value="'+f.v+'" data-fv="'+i+'" placeholder="€" style="max-width:84px">'
     +'<button class="x" data-fx="'+i+'">×</button></div>').join("")
-    +'<div class="row2"><span class="k">Despesas Fixas</span><span class="v ac tnum" id="totOrc">'+fmt(totalFixas())+'</span></div>';
+    +'<div class="row2" style="margin-top:6px"><span class="k">Despesas fixas</span><span class="v tnum" id="totFix">'+fmt(somaFixas())+'</span></div>'
+    +'<div class="row2"><span class="k">Despesas vari\u00e1veis</span><span class="v tnum" id="totVar">'+fmt(somaVars())+'</span></div>'
+    +'<div class="row2"><span class="k">Despesas totais</span><span class="v ac tnum" id="totOrc">'+fmt(totalFixas())+'</span></div>';
   E("fixasList").querySelectorAll("[data-ff]").forEach(el=>el.onchange=e=>{
     S.fixas[+el.dataset.ff].f=e.target.value==="1"; save(); rPlano();});
   E("fixasList").querySelectorAll("[data-fn]").forEach(el=>el.oninput=e=>{S.fixas[+el.dataset.fn].n=e.target.value;save();});
@@ -724,10 +749,14 @@ function sheetPote(id){
   openSheet(h);
   let cor=base.c;
   function pintaCor(){
-    E("pCor").innerHTML=CORES.map(c=>'<button class="chip'+(c===cor?" on":"")+'" data-cor="'+c+'" style="width:40px;height:34px;padding:0">'
-      +'<i style="display:block;width:14px;height:14px;border-radius:50%;background:'+c+';margin:0 auto"></i></button>').join("");
-    E("pCor").querySelectorAll("[data-cor]").forEach(b=>b.onclick=()=>{cor=b.dataset.cor;pintaCor();});
+    E("pCor").innerHTML=CORES.map(c=>'<button type="button" data-cor="'+c+'" style="width:46px;height:40px;padding:0;border-radius:12px;background:var(--bg3);'
+      +'border:2px solid '+(c===cor?c:"transparent")+'">'
+      +'<i style="display:block;width:16px;height:16px;border-radius:50%;background:'+c+';margin:0 auto;pointer-events:none"></i></button>').join("");
   }
+  E("pCor").addEventListener("click",e=>{
+    const b=e.target.closest("[data-cor]"); if(!b) return;
+    cor=b.dataset.cor; pintaCor();
+  });
   pintaCor();
   if(E("pRep")) E("pRep").onchange=e=>{ base.semRep=e.target.value==="0"; const w=E("pAlocWrap"); if(w) w.style.display=base.semRep?"none":""; };
   E("pOk").onclick=()=>{
@@ -740,13 +769,13 @@ function sheetPote(id){
     if(E("pO")){ const o=+E("pO").value; d.obj=o>0?o:null; }
     if(nova){ S.potes.push(Object.assign(base,d)); }
     else { Object.assign(pote(id),d); }
-    save(); closeSheet(); toast("Guardado"); rPotes();
+    save(); closeSheet(); toast("Guardado"); render();
   };
   if(!nova&&!base.fix) E("pDel").onclick=()=>{
     if(!usado){
       S.potes=S.potes.filter(x=>x.id!==id);
       if(S.heroPote===id) S.heroPote=(S.potes[0]||{}).id;
-      save(); closeSheet(); toast("Pote apagado"); rPotes(); return;
+      save(); closeSheet(); toast("Pote apagado"); render(); return;
     }
     const outros=S.potes.filter(x=>x.id!==id);
     if(!outros.length){toast("Tem de sobrar um pote");return;}
@@ -763,13 +792,15 @@ function sheetPote(id){
       S.movs.forEach(m=>{ if(m.pote===id) m.pote=dst.id; });
       S.potes=S.potes.filter(x=>x.id!==id);
       if(S.heroPote===id) S.heroPote=dst.id;
-      save(); closeSheet(); toast("Transferido para "+dst.n); rPotes();
+      save(); closeSheet(); toast("Transferido para "+dst.n); render();
     };
   };
 }
 
 function rConfigLight(){
   const to=E("totOrc"); if(to)to.textContent=fmt(totalFixas());
+  const tf=E("totFix"); if(tf)tf.textContent=fmt(somaFixas());
+  const tv=E("totVar"); if(tv)tv.textContent=fmt(somaVars());
   const nao=sobras()-alocado();
   const el=E("naoAloc");
   if(el){ el.textContent=fmt(nao); el.className="v tnum "+(nao<0?"bad":nao>0?"":"ac"); }
@@ -1189,7 +1220,6 @@ function pintaPatrim(){
       +'<span>Taxa de '+fmtData(ultimaTaxa(c))+'. Confirmei que continua esta.</span></label>':'')
     +'<div class="meta" style="margin-top:7px">'+bruta.toLocaleString("pt-PT")+'% ao ano'
     +((+c.irs>0)?' &rarr; '+(bruta*(1-c.irs/100)).toFixed(2).replace(".",",")+'% efetiva':'')
-      +(e.proxima?' · entra '+fmtData(e.proxima):'')
 
       +'</div></div>';
   }).join("")+'<div class="row2" style="border:none;padding-top:12px"><span class="k">Total acumulado</span>'
@@ -1354,8 +1384,8 @@ function sheetConta(id){
 
     const potesAqui=S.potes.filter(x=>x.conta===c.id).map(x=>x.id);
     h+=SEC("Para que serve")
-      +'<label class="f"><span>Finalidade</span><input type="text" id="cProp" value="'+esc(c.proposito||"")+'" placeholder="ex: gastos do dia a dia"></label>'
-      +'<label class="f"><span>Pote que vive aqui</span><select id="cPote"><option value="">—</option>'
+      +'<label class="f" id="cPropWrap"'+(potesAqui.length?' style="display:none"':'')+'><span>Finalidade</span><input type="text" id="cProp" value="'+esc(c.proposito||"")+'" placeholder="ex: gastos do dia a dia"></label>'
+      +'<label class="f"><span>Pote que vive aqui</span><select id="cPote"><option value="">\u2014</option>'
       +S.potes.map(x=>'<option value="'+x.id+'"'+(potesAqui.indexOf(x.id)>-1?" selected":"")+'>'+esc(x.n)+'</option>').join("")
       +'</select></label>'
       +(t==="ordem"?'':'<label class="f"><span>Mostrar no Patrim\u00f3nio</span><select id="cSec">'
@@ -1423,7 +1453,10 @@ function sheetConta(id){
       if(nova) S.contas.push(c); else Object.assign(conta(id),c);
       const pv=E("cPote")?E("cPote").value:null;
       if(E("cPote")){ S.potes.forEach(x=>{ if(x.conta===c.id) x.conta=null; }); if(pv&&pote(pv)) pote(pv).conta=c.id; }
-      save();closeSheet();toast("Guardado");pintaPatrim();
+      save();closeSheet();toast("Guardado");render();
+    };
+    if(E("cPote")) E("cPote").onchange=e=>{
+      const w=E("cPropWrap"); if(w) w.style.display=e.target.value?"none":"";
     };
     ["cDJ","cHJ","cP","cSerie","cVal","cInv","cS"].forEach(id=>{
       const el=E(id); if(el) el.onchange=resumo;
@@ -1524,7 +1557,7 @@ function sheetOrcamento(){
     S.fixas=S.fixas.filter(f=>f.f!==false)
       .concat(r.cats.filter(x=>inc[x.c]).map(x=>({n:x.c,v:Math.ceil(x.v),f:false})));
     const c=pote("correntes"); if(c) c.aloc=totalFixas();
-    save(); closeSheet(); toast("Orçamento atualizado"); rOrc(); rPlano();
+    save(); closeSheet(); toast("Orçamento atualizado"); render();
   };
 }
 
@@ -1535,7 +1568,7 @@ function openSheet(html){
   const fundo=E("sheets").querySelector(".sheet");
   fundo.onclick=e=>{if(e.target.classList.contains("sheet"))closeSheet();};
   const el=E("sheetIn");
-  let y0=null, dy=0, arrasta=false;
+  let y0=null, dy=0, arrasta=false, puxa=false;
   el.addEventListener("touchstart",e=>{
     if(e.touches.length!==1){y0=null;return;}
     y0=e.touches[0].clientY; dy=0; arrasta=el.scrollTop<=0;
@@ -1544,18 +1577,20 @@ function openSheet(html){
   el.addEventListener("touchmove",e=>{
     if(y0===null) return;
     dy=e.touches[0].clientY-y0;
-    if(!arrasta){ if(el.scrollTop<=0&&dy>0){ y0=e.touches[0].clientY; dy=0; arrasta=true; } else return; }
-    if(dy<=0){ el.style.transform=""; fundo.style.background=""; return; }
+    if(!arrasta){ if(el.scrollTop<=0&&dy>12){ y0=e.touches[0].clientY; dy=0; arrasta=true; } else return; }
+    if(dy<=12){ if(puxa){ el.style.transform=""; fundo.style.background=""; puxa=false; } return; }
+    puxa=true;
     if(e.cancelable) e.preventDefault();
     el.style.transform="translateY("+dy+"px)";
     fundo.style.background="rgba(0,0,0,"+(0.6*(1-Math.min(1,dy/420))).toFixed(3)+")";
   },{passive:false});
   function fim(){
     if(y0===null) return;
+    if(!puxa){ y0=null; arrasta=false; return; }
     el.style.transition="transform .2s ease-out";
     if(dy>115){ el.style.transform="translateY(100%)"; fundo.style.background="rgba(0,0,0,0)"; setTimeout(closeSheet,190); }
     else { el.style.transform=""; fundo.style.background=""; }
-    y0=null; arrasta=false;
+    y0=null; arrasta=false; puxa=false;
   }
   el.addEventListener("touchend",fim);
   el.addEventListener("touchcancel",fim);
@@ -1660,7 +1695,7 @@ function sheetGasto(){
     S.movs.push({id:Date.now(),d:new Date().toISOString().slice(0,10),v:v,cat:selCat||"Outros",pote:pid,nota:E("gNota").value.trim()});
     p.saldo=Math.round((p.saldo-v)*100)/100;
     save(); closeSheet(); toast("−"+fmt(v)+" · "+p.n);
-    if(view!=="inicio")go("inicio"); else render();
+    render();
   };
 }
 
