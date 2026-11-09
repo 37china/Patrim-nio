@@ -260,7 +260,6 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
       <h3>Orçamento</h3>
       <div id="fixasList"></div>
       <button class="btn sec" id="addFixa" style="margin-top:10px">+ Adicionar linha</button>
-      <button class="btn sec" id="calcOrc">Calcular a partir dos meus gastos</button>
     </div>
 
 
@@ -395,7 +394,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="09/11 11:03";
+const BUILD="09/11 11:07";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -707,7 +706,6 @@ function rPlano(){
   E("fixasList").querySelectorAll("[data-fv]").forEach(el=>el.oninput=e=>{S.fixas[+el.dataset.fv].v=+e.target.value||0;save();rConfigLight();});
   E("fixasList").querySelectorAll("[data-fx]").forEach(el=>el.onclick=()=>{S.fixas.splice(+el.dataset.fx,1);save();rPlano();});
   E("addFixa").onclick=()=>{S.fixas.push({n:"",v:0,f:false});save();rPlano();};
-  E("calcOrc").onclick=sheetOrcamento;
 
   E("cfDia").value=S.dia||1;
   E("cfDia").oninput=e=>{const v=+e.target.value;S.dia=(v>=1&&v<=28)?v:1;save();};
@@ -1542,54 +1540,6 @@ function sheetConta(id){
 
 /* ---------- orçamento a partir dos dados ---------- */
 const FORA_ORC=["Entrada","Ajuste","Investimento"];
-function mediaPorCat(){
-  const atual=mesKey(new Date());
-  let g=S.movs.filter(m=>m.v>0&&FORA_ORC.indexOf(m.cat)<0);
-  const todos={}; g.forEach(m=>{todos[m.d.slice(0,7)]=1;});
-  const completos=Object.keys(todos).filter(k=>k!==atual);
-  let usados, parcial=false;
-  if(completos.length){ usados=completos; g=g.filter(m=>completos.indexOf(m.d.slice(0,7))>-1); }
-  else { usados=Object.keys(todos); parcial=true; }
-  const by={}; g.forEach(m=>{by[m.cat]=(by[m.cat]||0)+m.v;});
-  const n=Math.max(1,usados.length);
-  return {n:n, meses:usados.sort(), parcial:parcial,
-    cats:Object.entries(by).map(([c,v])=>({c:c,v:Math.round((v/n)*100)/100})).sort((a,b)=>b.v-a.v)};
-}
-function sheetOrcamento(){
-  const r=mediaPorCat();
-  if(!r.cats.length){
-    openSheet('<h2>Sem dados suficientes</h2><p class="note" style="text-align:center">Importa um ou dois extratos primeiro.</p><button class="btn sec" id="oNo">Fechar</button>');
-    E("oNo").onclick=closeSheet; return;
-  }
-  const inc={}; r.cats.forEach(x=>{inc[x.c]=true;});
-  openSheet('<h2>Orçamento a partir dos teus gastos</h2>'
-    +'<p class="note" style="text-align:center">Média de '+r.n+' '+(r.n===1?"mês":"meses")+': '
-    +r.meses.map(m=>mesNome(m).split(" ")[0]).join(", ")+'.'
-    +(r.parcial?' <b>O mês em curso ainda não acabou, por isso esta média está subestimada.</b>':'')+'</p>'
-    +'<div id="oRows"></div>'
-    +'<div class="row2" style="margin-top:6px"><span class="k">Total do orçamento</span><span class="v tnum" id="oTot"></span></div>'
-    +'<button class="btn" id="oOk" style="margin-top:14px">Aplicar como orçamento</button>'
-    +'<button class="btn sec" id="oNo">Cancelar</button>');
-  function draw(){
-    E("oRows").innerHTML=r.cats.map(x=>
-      '<div class="pote" style="opacity:'+(inc[x.c]?1:.35)+'" data-oc="'+esc(x.c)+'">'
-      +'<div class="ic" style="width:34px;height:34px;border-radius:10px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex:0 0 34px">'
-      +(S.icons[x.c]||"•")+'</div><div class="info"><div class="nm"><span>'+esc(x.c)+'</span>'
-      +'<b class="tnum">'+fmt(x.v)+'</b></div><div class="meta">'+(inc[x.c]?"incluído":"excluído")+' &middot; toca para trocar</div></div></div>').join("");
-    E("oRows").querySelectorAll("[data-oc]").forEach(el=>el.onclick=()=>{
-      inc[el.dataset.oc]=!inc[el.dataset.oc]; draw();});
-    const t=r.cats.filter(x=>inc[x.c]).reduce((a,x)=>a+x.v,0)+totalFixo();
-    E("oTot").textContent=fmt(t);
-  }
-  draw();
-  E("oNo").onclick=closeSheet;
-  E("oOk").onclick=()=>{
-    S.fixas=S.fixas.filter(f=>f.f!==false)
-      .concat(r.cats.filter(x=>inc[x.c]).map(x=>({n:x.c,v:Math.ceil(x.v),f:false})));
-    const c=pote("correntes"); if(c) c.aloc=totalFixas();
-    save(); closeSheet(); toast("Orçamento atualizado"); render();
-  };
-}
 
 /* ---------- sheets ---------- */
 function closeSheet(){E("sheets").innerHTML="";}
