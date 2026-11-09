@@ -374,13 +374,13 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 
 <nav class="hide" id="nav"><div class="row">
   <button data-v="orc" class="on">
-    <svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M5 7h9a3 3 0 0 1 0 6H8a3 3 0 0 0 0 6h10"/></svg>Orçamento</button>
+    <svg viewBox="0 0 24 24"><path d="M16.5 5.5A5.5 5.5 0 0 0 8 10v4a5.5 5.5 0 0 0 8.5 4.5"/><path d="M4.5 11h7"/><path d="M4.5 14h7"/></svg>Orçamento</button>
   <button data-v="potes">
-    <svg viewBox="0 0 24 24"><path d="M4 7h16v13H4z"/><path d="M8 7V4h8v3"/><path d="M4 12h16"/></svg>Potes</button>
+    <svg viewBox="0 0 24 24"><path d="M9 3.5h6l-1.4 2.9a7.8 7.8 0 0 1 4.9 7.2c0 4-3.4 6.9-6.5 6.9s-6.5-2.9-6.5-6.9a7.8 7.8 0 0 1 4.9-7.2Z"/><path d="M14.3 12.3a3.2 3.2 0 1 0 0 5.2"/><path d="M8.6 13.6h4.4"/><path d="M8.6 15.6h4.4"/></svg>Potes</button>
   <button data-v="contas">
-    <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>Contas</button>
+    <svg viewBox="0 0 24 24"><path d="M3 9.5 12 4l9 5.5"/><path d="M4.5 9.5V18"/><path d="M19.5 9.5V18"/><path d="M8.5 11v7"/><path d="M12 11v7"/><path d="M15.5 11v7"/><path d="M2.5 20.5h19"/></svg>Contas</button>
   <button data-v="patrim">
-    <svg viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M5 20V9l7-5 7 5v11"/><path d="M10 20v-6h4v6"/></svg>Património</button>
+    <svg viewBox="0 0 24 24"><path d="M12 20.5v-7.5"/><path d="M12 13c0-3 2.2-5.5 5.5-5.9.4 3.3-1.8 6.2-5.5 5.9Z"/><path d="M12 15.5c-.3-2.8-2.3-4.9-5.2-5.2-.3 2.9 1.8 5 5.2 5.2Z"/><path d="M7 20.5h10"/></svg>Património</button>
   <button data-v="import">
     <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>Importar</button>
 </div></nav>
@@ -390,7 +390,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="09/11 09:11";
+const BUILD="09/11 09:16";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -1699,19 +1699,59 @@ function sheetGasto(){
   };
 }
 
+function movimentaConta(c,v){
+  if(!c) return;
+  const hoje=new Date().toISOString().slice(0,10);
+  if(c.tipo==="aforro"||c.tipo==="remunerada"){
+    c.subs=c.subs||[];
+    c.subs.push({id:"s"+Date.now(),valor:Math.round(v*100)/100,data:hoje});
+    c.subs.sort((a,b)=>String(a.data||"").localeCompare(String(b.data||"")));
+  } else if(c.tipo==="investimento"){
+    c.valor=Math.round(((+c.valor||0)+v)*100)/100;
+    c.investido=Math.round(((+c.investido||0)+v)*100)/100;
+  } else {
+    c.saldo=Math.round(((+c.saldo||0)+v)*100)/100;
+  }
+}
+
 function sheetAjuste(pid){
-  const p=pote(pid);
+  const p=pote(pid), c=p.conta?conta(p.conta):null;
+  const outros=S.potes.filter(x=>x.id!==pid);
+  const ops=[];
+  if(c) ops.push({v:"conta",t:"Conta "+c.n+" \u2014 dinheiro que entra ou sai do banco"});
+  outros.forEach(x=>ops.push({v:"p:"+x.id,t:"Pote "+x.n+" \u2014 so\u0301 muda a reparti\u00e7\u00e3o"}));
+  ops.push({v:"manual",t:"Ajuste manual \u2014 sem contrapartida"});
   openSheet('<h2>'+esc(p.n)+'</h2>'
     +'<p class="note" style="text-align:center">Saldo atual: <b style="color:var(--tx)">'+fmt(p.saldo)+'</b></p>'
-    +'<div class="disp" id="disp"><span>0,00 €</span></div>'
+    +'<div class="disp" id="disp"><span>0,00 \u20ac</span></div>'
     +calcHTML()
-    +'<button class="btn" id="aAdd" disabled>Depositar</button>'
-    +'<button class="btn sec" id="aSub" disabled>Retirar</button>');
+    +'<label class="f" style="margin-top:14px"><span>De onde vem ou para onde vai</span><select id="aOrig">'
+    +ops.map(o=>'<option value="'+o.v+'">'+esc(o.t)+'</option>').join("")+'</select></label>'
+    +'<div class="meta" id="aNota" style="margin:-6px 0 12px"></div>'
+    +'<button class="btn" id="aAdd" disabled>Entra neste pote</button>'
+    +'<button class="btn sec" id="aSub" disabled>Sai deste pote</button>');
+  function nota(){
+    const o=E("aOrig").value;
+    E("aNota").textContent = o==="conta"
+      ? "Mexe no saldo da conta e no pote ao mesmo tempo, para os dois continuarem a bater."
+      : o==="manual"
+        ? "S\u00f3 corrige o pote. Vai deixar de bater com a conta onde ele vive."
+        : "Troca dinheiro entre dois potes. Nenhuma conta muda.";
+  }
+  E("aOrig").onchange=nota; nota();
   calcLiga(v=>{const ok=v>0; E("aAdd").disabled=!ok; E("aSub").disabled=!ok;});
   function ap(sig){
-    const v=calcValor()*sig;
+    const v=Math.round(calcValor()*sig*100)/100;
+    const o=E("aOrig").value;
     p.saldo=Math.round((p.saldo+v)*100)/100;
-    S.movs.push({id:Date.now(),d:new Date().toISOString().slice(0,10),v:-v,cat:"Ajuste",pote:pid,nota:(sig>0?"Depósito":"Retirada")+" — "+p.n});
+    let nt="";
+    if(o==="conta"){ movimentaConta(c,v); nt=(v>0?"Entrou":"Saiu")+" em "+c.n; }
+    else if(o==="manual"){ nt="Ajuste manual"; }
+    else {
+      const q=pote(o.slice(2));
+      if(q){ q.saldo=Math.round((q.saldo-v)*100)/100; nt=(v>0?"De ":"Para ")+q.n; }
+    }
+    S.movs.push({id:Date.now(),d:new Date().toISOString().slice(0,10),v:-v,cat:"Ajuste",pote:pid,nota:nt+" \u2014 "+p.n});
     save();closeSheet();toast(p.n+": "+fmt(p.saldo));render();
   }
   E("aAdd").onclick=()=>ap(1); E("aSub").onclick=()=>ap(-1);
