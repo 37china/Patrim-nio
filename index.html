@@ -402,7 +402,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="09/11 15:33";
+const BUILD="09/11 15:36";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -715,6 +715,30 @@ const TITULOS={potes:"Potes",orc:"Orçamento",contas:"Contas",patrim:"Patrimóni
 const VISTAS=["orc","potes","contas","patrim","mes","import","config"];
 const DENTRO_MAIS=["import","config"];
 let VOLTA_PARA="orc";
+const ABAS=["orc","potes","contas","patrim","import"];
+function ligaDeslize(){
+  const alvo=E("app");
+  let x0=0,y0=0,vale=false;
+  alvo.addEventListener("touchstart",e=>{
+    vale=false;
+    if(e.touches.length!==1) return;
+    if(E("sheets").innerHTML) return;                 // folha aberta manda ela
+    if(ABAS.indexOf(view)<0) return;                  // vistas de dentro nao deslizam
+    const t=e.target;
+    if(t.closest&&t.closest("#grafSvg,input[type=range],.chips,[data-noswipe]")) return;
+    x0=e.touches[0].clientX; y0=e.touches[0].clientY; vale=true;
+  },{passive:true});
+  alvo.addEventListener("touchend",e=>{
+    if(!vale) return; vale=false;
+    const t=e.changedTouches[0];
+    const dx=t.clientX-x0, dy=t.clientY-y0;
+    if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.6) return;
+    const i=ABAS.indexOf(view);
+    const j=dx<0?i+1:i-1;
+    if(j<0||j>=ABAS.length) return;
+    go(ABAS[j]);
+  });
+}
 function go(v){
   view=v;
   VISTAS.forEach(x=>E("v-"+x).classList.toggle("hide",x!==v));
@@ -2345,6 +2369,7 @@ function drawPins(){
 function boot2(){
   E("app").classList.remove("hide"); E("nav").classList.remove("hide");
   document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>go(b.dataset.v));
+  ligaDeslize();
   E("mesLbl").textContent="v"+BUILD;
   E("btnVoltar").onclick=()=>go(VOLTA_PARA||"orc");
   E("btnCfg").onclick=()=>{ if(view!=="config") VOLTA_PARA=view; go("config"); };
