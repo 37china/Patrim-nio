@@ -146,6 +146,7 @@ textarea{width:100%;padding:12px 13px;border-radius:11px;background:var(--bg3);
   border:1px solid var(--line);font-size:14px;resize:vertical;line-height:1.4;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 textarea:focus{outline:none;border-color:var(--ac2)}
+input[type=range]{accent-color:var(--ac);width:100%;height:28px}
 input[type=text],input[type=number],input[type=password],input[type=date],input[type=time],select{width:100%;padding:12px 13px;
   border-radius:11px;background:var(--bg3);border:1px solid var(--line);font-size:15.5px;
   -webkit-appearance:none;appearance:none;color:var(--tx)}
@@ -304,6 +305,13 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
       <div id="longoBody" class="hide" style="margin-top:12px"></div>
     </div>
 
+    <div class="card" id="cardGraf" style="padding-top:14px;padding-bottom:14px">
+      <button type="button" id="grafHdr" style="width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left">
+        <span style="font-size:14.5px;font-weight:600">Evolução e projeção</span>
+        <span id="grafChev" style="color:var(--tx3);font-size:17px">›</span></button>
+      <div id="grafBody" class="hide" style="margin-top:12px"></div>
+    </div>
+
 
     </div>
   </section>
@@ -394,7 +402,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="09/11 11:07";
+const BUILD="09/11 15:33";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -527,6 +535,163 @@ function gastosMes(k){return movsMes(k).filter(m=>m.cat!=="Ajuste");}
 function diasRestantes(){const n=new Date();const u=new Date(n.getFullYear(),n.getMonth()+1,0).getDate();return Math.max(1,u-n.getDate()+1);}
 function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;
   document.body.appendChild(d);setTimeout(()=>d.remove(),1900);}
+
+/* ---------- historia do patrimonio ---------- */
+function fimDoMes(k){ const[a,m]=k.split("-").map(Number); return new Date(a,m,0,23,59,59); }
+function registaSnap(){
+  S.snaps=S.snaps||{};
+  S.snaps[mesKey(new Date())]=Math.round(patrimonio(new Date()).total*100)/100;
+}
+function primeiroMes(){
+  // a linha so comeca quando ja ha ponto de partida para todas as contas:
+  // antes disso faltavam contas e o patrimonio aparecia a saltar
+  let d=null;
+  S.contas.forEach(c=>{
+    let p=null;
+    (c.subs||[]).forEach(x=>{ const t=new Date(x.data+"T00:00:00"); if(!isNaN(t)&&(!p||t<p)) p=t; });
+    if(p&&(!d||p>d)) d=p;
+  });
+  Object.keys(S.snaps||{}).forEach(k=>{ const t=fimDoMes(k); if(!d||t<d) d=t; });
+  return d||new Date();
+}
+function historico(){
+  const fim=new Date(), ini=primeiroMes(), pts=[];
+  let k=mesKey(ini), guarda=0;
+  while(k<=mesKey(fim)&&guarda++<400){
+    const ultimo = k===mesKey(fim);
+    const quando = ultimo?fim:fimDoMes(k);
+    const v = (S.snaps&&S.snaps[k]!=null&&!ultimo) ? S.snaps[k] : patrimonio(quando).total;
+    pts.push({k:k,v:v,fut:false});
+    const d=fimDoMes(k); k=mesKey(new Date(d.getFullYear(),d.getMonth()+1,1));
+  }
+  return pts;
+}
+function aportes(){
+  const por={}; let tot=0;
+  S.potes.forEach(p=>{
+    if(p.fix||!p.acum||!p.conta) return;
+    const a=+p.aloc||0; if(a<=0) return;
+    por[p.conta]=(por[p.conta]||0)+a; tot+=a;
+  });
+  return {por:por,tot:tot};
+}
+function projecao(meses,aporteMes){
+  const ap=aportes(), agora=new Date();
+  const linhas=S.contas.map(c=>{
+    const base=ap.por[c.id]||0;
+    let quota;
+    if(ap.tot>0) quota=aporteMes*(base/ap.tot);
+    else quota=0;
+    return {v:estado(c,agora).valor||0, r:(taxaAtual(c)||0)/100/12, a:quota};
+  });
+  if(ap.tot===0&&aporteMes>0&&linhas.length){
+    let melhor=0; linhas.forEach((l,i)=>{ if(l.r>linhas[melhor].r) melhor=i; });
+    linhas[melhor].a=aporteMes;
+  }
+  const pts=[]; let d=new Date();
+  for(let m=1;m<=meses;m++){
+    linhas.forEach(l=>{ l.v=l.v*(1+l.r)+l.a; });
+    d=new Date(d.getFullYear(),d.getMonth()+1,1);
+    pts.push({k:mesKey(d),v:linhas.reduce((x,l)=>x+l.v,0),fut:true});
+  }
+  return pts;
+}
+
+/* ---------- desenho do grafico ---------- */
+var GRAF={meses:12,aporte:null,aberto:false};
+const MES3=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+function rotuloMes(k){ const[a,m]=k.split("-"); return MES3[+m-1]+" "+a.slice(2); }
+
+function rGraf(){
+  const corpo=E("grafBody"); if(!corpo) return;
+  E("grafBody").classList.toggle("hide",!GRAF.aberto);
+  E("grafChev").style.transform=GRAF.aberto?"rotate(90deg)":"";
+  E("grafHdr").onclick=()=>{ GRAF.aberto=!GRAF.aberto; rGraf(); };
+  if(!GRAF.aberto){ corpo.innerHTML=""; return; }
+
+  const ap=aportes();
+  if(GRAF.aporte===null) GRAF.aporte=Math.round(ap.tot);
+  const passado=historico(), futuro=projecao(GRAF.meses,GRAF.aporte);
+  const pts=passado.concat(futuro);
+  const iHoje=passado.length-1;
+  const vs=pts.map(p=>p.v);
+  let lo=Math.min.apply(null,vs), hi=Math.max.apply(null,vs);
+  if(hi-lo<1){ lo-=1; hi+=1; }
+  const folga=(hi-lo)*0.12; lo-=folga; hi+=folga;
+  const W=320,H=150,ML=46,MR=8,MT=14,MB=20;
+  const px=i=>ML+(W-ML-MR)*(pts.length<2?0.5:i/(pts.length-1));
+  const py=v=>MT+(H-MT-MB)*(1-(v-lo)/(hi-lo));
+  const d=a=>a.map((p,j)=>(j?"L":"M")+px(p.i).toFixed(1)+" "+py(p.v).toFixed(1)).join(" ");
+  const idx=pts.map((p,i)=>({i:i,v:p.v}));
+  const linhaReal=d(idx.slice(0,iHoje+1));
+  const linhaFut=d(idx.slice(iHoje));
+
+  let grelha="";
+  for(let g=0;g<=2;g++){
+    const v=lo+(hi-lo)*g/2, y=py(v);
+    grelha+='<line x1="'+ML+'" y1="'+y.toFixed(1)+'" x2="'+(W-MR)+'" y2="'+y.toFixed(1)+'" stroke="var(--line)" stroke-width="1"/>'
+      +'<text x="'+(ML-6)+'" y="'+(y+3).toFixed(1)+'" text-anchor="end" font-size="8.5" fill="var(--tx3)">'
+      +Math.round(v).toLocaleString("pt-PT")+'</text>';
+  }
+  let eixoX="";
+  [0,iHoje,pts.length-1].forEach((i,j)=>{
+    if(i<0||i>=pts.length) return;
+    eixoX+='<text x="'+px(i).toFixed(1)+'" y="'+(H-6)+'" text-anchor="'+(j===0?"start":j===2?"end":"middle")
+      +'" font-size="8.5" fill="var(--tx3)">'+rotuloMes(pts[i].k)+'</text>';
+  });
+
+  const fim=futuro.length?futuro[futuro.length-1].v:(passado.length?passado[passado.length-1].v:0);
+  const hoje=passado.length?passado[iHoje].v:0;
+
+  corpo.innerHTML=
+    '<div class="row2" style="border:none;padding:0 0 2px"><span class="k">Daqui a '+GRAF.meses+' meses</span>'
+    +'<span class="v tnum'+(S.ocGraf?" oculto":"")+'" data-oc="ocGraf">'+fmt(fim)+'</span></div>'
+    +'<p class="meta" style="margin:0 0 10px">'+(fim>=hoje?"+":"")+fmt(fim-hoje)+' face a hoje, se as taxas se mantiverem.</p>'
+    +'<svg id="grafSvg" viewBox="0 0 '+W+' '+H+'" width="100%" height="150" style="display:block;touch-action:pan-y">'
+    +grelha+eixoX
+    +'<line id="grafHoje" x1="'+px(iHoje).toFixed(1)+'" y1="'+MT+'" x2="'+px(iHoje).toFixed(1)+'" y2="'+(H-MB)+'" stroke="var(--line)" stroke-width="1"/>'
+    +'<path d="'+linhaFut+'" fill="none" stroke="var(--ac)" stroke-width="2" stroke-dasharray="4 3" opacity="0.5" stroke-linecap="round"/>'
+    +'<path d="'+linhaReal+'" fill="none" stroke="var(--ac)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+    +'<circle cx="'+px(iHoje).toFixed(1)+'" cy="'+py(hoje).toFixed(1)+'" r="4" fill="var(--ac)" stroke="var(--bg2)" stroke-width="2"/>'
+    +'<g id="grafMira" style="display:none"><line y1="'+MT+'" y2="'+(H-MB)+'" stroke="var(--tx3)" stroke-width="1"/>'
+    +'<circle r="4" fill="var(--tx)" stroke="var(--bg2)" stroke-width="2"/></g>'
+    +'<text id="grafTip" x="'+ML+'" y="9" font-size="9" fill="var(--tx2)" style="display:none"></text>'
+    +'</svg>'
+    +'<label class="f" style="margin:12px 0 0"><span>Ponho de lado '+fmt(GRAF.aporte)+' por m\u00eas</span>'
+    +'<input type="range" id="grafAp" min="0" max="500" step="10" value="'+GRAF.aporte+'" style="width:100%"></label>'
+    +'<div class="chips" style="margin-top:4px">'
+    +[12,24,60].map(m=>'<button type="button" class="chip'+(GRAF.meses===m?" on":"")+'" data-gm="'+m+'">'
+      +(m<24?m+" meses":(m/12)+" anos")+'</button>').join("")+'</div>'
+    +(passado.length<2?'<p class="meta" style="margin-top:10px">A linha cheia come\u00e7a no teu ponto de partida mais antigo. Com o tempo, cada m\u00eas que passa acrescenta-lhe um ponto.</p>':'');
+
+  const ipt=E("grafAp");
+  ipt.oninput=e=>{ GRAF.aporte=+e.target.value; rGraf(); };
+  corpo.querySelectorAll("[data-gm]").forEach(b=>b.onclick=()=>{ GRAF.meses=+b.dataset.gm; rGraf(); });
+
+  const svg=E("grafSvg"), mira=E("grafMira"), tip=E("grafTip");
+  function aponta(cx){
+    const r=svg.getBoundingClientRect();
+    const x=(cx-r.left)/r.width*W;
+    let i=Math.round((x-ML)/((W-ML-MR)/Math.max(1,pts.length-1)));
+    i=Math.max(0,Math.min(pts.length-1,i));
+    const p=pts[i];
+    mira.style.display="";
+    mira.querySelector("line").setAttribute("x1",px(i).toFixed(1));
+    mira.querySelector("line").setAttribute("x2",px(i).toFixed(1));
+    mira.querySelector("circle").setAttribute("cx",px(i).toFixed(1));
+    mira.querySelector("circle").setAttribute("cy",py(p.v).toFixed(1));
+    tip.style.display="";
+    tip.textContent=rotuloMes(p.k)+"  \u00b7  "+fmt(p.v)+(p.fut?"  (proje\u00e7\u00e3o)":"");
+    tip.setAttribute("text-anchor", i>pts.length*0.6?"end":"start");
+    tip.setAttribute("x", i>pts.length*0.6?(W-MR):ML);
+  }
+  function larga(){ mira.style.display="none"; tip.style.display="none"; }
+  svg.addEventListener("touchstart",e=>aponta(e.touches[0].clientX),{passive:true});
+  svg.addEventListener("touchmove",e=>aponta(e.touches[0].clientX),{passive:true});
+  svg.addEventListener("touchend",larga);
+  svg.addEventListener("mousemove",e=>aponta(e.clientX));
+  svg.addEventListener("mouseleave",larga);
+}
 
 /* ---------- ciclo mensal ---------- */
 function aplicarMes(k){
@@ -1146,7 +1311,9 @@ function pintaGatePin(){
 /* ---------- vista Património ---------- */
 let TICK=null, LONGO_ABERTO=false;
 function rPatrim(){
-  LONGO_ABERTO=false;
+  LONGO_ABERTO=false; GRAF.aberto=false; GRAF.aporte=null;
+  registaSnap(); save();
+  setTimeout(rGraf,0);
   if(mostraGate()) return;
   pintaOlho();
   E("patOlho").onclick=()=>{
@@ -1173,7 +1340,7 @@ function pintaPatrim(){
     E("patBody").addEventListener("click",ev=>{
       const el=ev.target.closest("[data-oc]"); if(!el) return;
       ev.stopPropagation();
-      const k=el.dataset.oc; S[k]=!S[k]; save(); pintaPatrim();
+      const k=el.dataset.oc; S[k]=!S[k]; save(); pintaPatrim(); if(GRAF.aberto) rGraf();
     });
   }
 
