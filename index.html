@@ -402,7 +402,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="09/11 15:36";
+const BUILD="09/11 15:46";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -542,7 +542,15 @@ function registaSnap(){
   S.snaps=S.snaps||{};
   S.snaps[mesKey(new Date())]=Math.round(patrimonio(new Date()).total*100)/100;
 }
-function primeiroMes(){
+function primeiroMes(alvo){
+  if(alvo&&alvo!=="geral"){
+    const c=conta(alvo); let p=null;
+    (c&&c.subs||[]).forEach(x=>{ const t=new Date(x.data+"T00:00:00"); if(!isNaN(t)&&(!p||t<p)) p=t; });
+    return p||new Date();
+  }
+  return primeiroMesGeral();
+}
+function primeiroMesGeral(){
   // a linha so comeca quando ja ha ponto de partida para todas as contas:
   // antes disso faltavam contas e o patrimonio aparecia a saltar
   let d=null;
@@ -554,14 +562,20 @@ function primeiroMes(){
   Object.keys(S.snaps||{}).forEach(k=>{ const t=fimDoMes(k); if(!d||t<d) d=t; });
   return d||new Date();
 }
-function historico(){
-  const fim=new Date(), ini=primeiroMes(), pts=[];
+function valorEm(alvo,quando,k,ultimo){
+  if(alvo==="geral"){
+    if(S.snaps&&S.snaps[k]!=null&&!ultimo) return S.snaps[k];
+    return patrimonio(quando).total;
+  }
+  const c=conta(alvo); return c?(estado(c,quando).valor||0):0;
+}
+function historico(alvo){
+  alvo=alvo||"geral";
+  const fim=new Date(), ini=primeiroMes(alvo), pts=[];
   let k=mesKey(ini), guarda=0;
-  while(k<=mesKey(fim)&&guarda++<400){
+  while(k<=mesKey(fim)&&guarda++<600){
     const ultimo = k===mesKey(fim);
-    const quando = ultimo?fim:fimDoMes(k);
-    const v = (S.snaps&&S.snaps[k]!=null&&!ultimo) ? S.snaps[k] : patrimonio(quando).total;
-    pts.push({k:k,v:v,fut:false});
+    pts.push({k:k,v:valorEm(alvo,ultimo?fim:fimDoMes(k),k,ultimo),fut:false});
     const d=fimDoMes(k); k=mesKey(new Date(d.getFullYear(),d.getMonth()+1,1));
   }
   return pts;
@@ -575,30 +589,37 @@ function aportes(){
   });
   return {por:por,tot:tot};
 }
-function projecao(meses,aporteMes){
+function projecao(alvo,meses){
+  alvo=alvo||"geral";
   const ap=aportes(), agora=new Date();
-  const linhas=S.contas.map(c=>{
-    const base=ap.por[c.id]||0;
-    let quota;
-    if(ap.tot>0) quota=aporteMes*(base/ap.tot);
-    else quota=0;
-    return {v:estado(c,agora).valor||0, r:(taxaAtual(c)||0)/100/12, a:quota};
-  });
-  if(ap.tot===0&&aporteMes>0&&linhas.length){
-    let melhor=0; linhas.forEach((l,i)=>{ if(l.r>linhas[melhor].r) melhor=i; });
-    linhas[melhor].a=aporteMes;
-  }
+  const quais=alvo==="geral"?S.contas:S.contas.filter(c=>c.id===alvo);
+  const linhas=quais.map(c=>({v:estado(c,agora).valor||0,r:(taxaAtual(c)||0)/100/12,a:ap.por[c.id]||0}));
+  const passo=Math.max(1,Math.ceil(meses/130));
   const pts=[]; let d=new Date();
   for(let m=1;m<=meses;m++){
     linhas.forEach(l=>{ l.v=l.v*(1+l.r)+l.a; });
     d=new Date(d.getFullYear(),d.getMonth()+1,1);
-    pts.push({k:mesKey(d),v:linhas.reduce((x,l)=>x+l.v,0),fut:true});
+    if(m%passo===0||m===meses) pts.push({k:mesKey(d),v:linhas.reduce((x,l)=>x+l.v,0),fut:true});
   }
   return pts;
 }
 
 /* ---------- desenho do grafico ---------- */
-var GRAF={meses:12,aporte:null,aberto:false};
+var GRAF={alvo:"geral",pos:10,aberto:false};
+function mesesDoCursor(v){ return Math.max(1,Math.round(1200*Math.pow(v/100,2))); }
+function horizonteTexto(m){
+  if(m<24) return m+(m===1?" m\u00eas":" meses");
+  const a=Math.floor(m/12), r=m%12;
+  if(a<10&&r) return a+" anos e "+r+(r===1?" m\u00eas":" meses");
+  return a+" anos";
+}
+const curto=t=>String(t).split("\u2014")[0].trim();
+function curtoNum(v){
+  const a=Math.abs(v);
+  if(a>=1e6) return (v/1e6).toLocaleString("pt-PT",{maximumFractionDigits:1})+"M";
+  if(a>=10000) return Math.round(v/1000).toLocaleString("pt-PT")+"k";
+  return Math.round(v).toLocaleString("pt-PT");
+}
 const MES3=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 function rotuloMes(k){ const[a,m]=k.split("-"); return MES3[+m-1]+" "+a.slice(2); }
 
@@ -609,64 +630,71 @@ function rGraf(){
   E("grafHdr").onclick=()=>{ GRAF.aberto=!GRAF.aberto; rGraf(); };
   if(!GRAF.aberto){ corpo.innerHTML=""; return; }
 
-  const ap=aportes();
-  if(GRAF.aporte===null) GRAF.aporte=Math.round(ap.tot);
-  const passado=historico(), futuro=projecao(GRAF.meses,GRAF.aporte);
+  // so contas que rendem: uma conta a ordem daria uma linha plana
+  const uteis=S.contas.filter(c=>c.tipo==="remunerada"||c.tipo==="aforro"
+    ||(c.tipo==="investimento"&&(+c.valor||0)>0));
+  const alvos=[{id:"geral",n:"Geral"}].concat(uteis.map(c=>({id:c.id,n:curto(c.n)})));
+  alvos.forEach((a,i)=>{ if(alvos.some((b,j)=>j!==i&&b.n===a.n)){
+    const c=conta(a.id); if(c) a.n=c.n.replace(/\s*\u2014\s*/," ");
+  }});
+  if(!alvos.some(a=>a.id===GRAF.alvo)) GRAF.alvo="geral";
+  const meses=mesesDoCursor(GRAF.pos);
+  const passado=historico(GRAF.alvo), futuro=projecao(GRAF.alvo,meses);
   const pts=passado.concat(futuro);
   const iHoje=passado.length-1;
   const vs=pts.map(p=>p.v);
   let lo=Math.min.apply(null,vs), hi=Math.max.apply(null,vs);
   if(hi-lo<1){ lo-=1; hi+=1; }
   const folga=(hi-lo)*0.12; lo-=folga; hi+=folga;
-  const W=320,H=150,ML=46,MR=8,MT=14,MB=20;
+  const W=320,H=150,ML=52,MR=8,MT=14,MB=20;
   const px=i=>ML+(W-ML-MR)*(pts.length<2?0.5:i/(pts.length-1));
   const py=v=>MT+(H-MT-MB)*(1-(v-lo)/(hi-lo));
-  const d=a=>a.map((p,j)=>(j?"L":"M")+px(p.i).toFixed(1)+" "+py(p.v).toFixed(1)).join(" ");
-  const idx=pts.map((p,i)=>({i:i,v:p.v}));
-  const linhaReal=d(idx.slice(0,iHoje+1));
-  const linhaFut=d(idx.slice(iHoje));
+  const d=a=>a.map((q,j)=>(j?"L":"M")+px(q.i).toFixed(1)+" "+py(q.v).toFixed(1)).join(" ");
+  const idx=pts.map((q,i)=>({i:i,v:q.v}));
 
   let grelha="";
   for(let g=0;g<=2;g++){
     const v=lo+(hi-lo)*g/2, y=py(v);
     grelha+='<line x1="'+ML+'" y1="'+y.toFixed(1)+'" x2="'+(W-MR)+'" y2="'+y.toFixed(1)+'" stroke="var(--line)" stroke-width="1"/>'
       +'<text x="'+(ML-6)+'" y="'+(y+3).toFixed(1)+'" text-anchor="end" font-size="8.5" fill="var(--tx3)">'
-      +Math.round(v).toLocaleString("pt-PT")+'</text>';
+      +curtoNum(v)+'</text>';
   }
   let eixoX="";
-  [0,iHoje,pts.length-1].forEach((i,j)=>{
-    if(i<0||i>=pts.length) return;
-    eixoX+='<text x="'+px(i).toFixed(1)+'" y="'+(H-6)+'" text-anchor="'+(j===0?"start":j===2?"end":"middle")
+  const ult=pts.length-1;
+  [[0,"start"],[iHoje,"middle"],[ult,"end"]].forEach(([i,anc],j)=>{
+    if(i<0||i>ult) return;
+    // sem rotulo do meio quando colidiria com as pontas
+    if(j===1&&(px(i)-px(0)<34||px(ult)-px(i)<34)) return;
+    eixoX+='<text x="'+px(i).toFixed(1)+'" y="'+(H-6)+'" text-anchor="'+anc
       +'" font-size="8.5" fill="var(--tx3)">'+rotuloMes(pts[i].k)+'</text>';
   });
 
-  const fim=futuro.length?futuro[futuro.length-1].v:(passado.length?passado[passado.length-1].v:0);
+  const fim=futuro.length?futuro[futuro.length-1].v:(passado.length?passado[iHoje].v:0);
   const hoje=passado.length?passado[iHoje].v:0;
 
   corpo.innerHTML=
-    '<div class="row2" style="border:none;padding:0 0 2px"><span class="k">Daqui a '+GRAF.meses+' meses</span>'
+    '<div class="chips" style="margin:0 0 12px">'
+    +alvos.map(a=>'<button type="button" class="chip'+(GRAF.alvo===a.id?" on":"")+'" data-ga="'+a.id+'">'+esc(a.n)+'</button>').join("")
+    +'</div>'
+    +'<div class="row2" style="border:none;padding:0 0 2px"><span class="k">Daqui a '+horizonteTexto(meses)+'</span>'
     +'<span class="v tnum'+(S.ocGraf?" oculto":"")+'" data-oc="ocGraf">'+fmt(fim)+'</span></div>'
     +'<p class="meta" style="margin:0 0 10px">'+(fim>=hoje?"+":"")+fmt(fim-hoje)+' face a hoje, se as taxas se mantiverem.</p>'
     +'<svg id="grafSvg" viewBox="0 0 '+W+' '+H+'" width="100%" height="150" style="display:block;touch-action:pan-y">'
     +grelha+eixoX
-    +'<line id="grafHoje" x1="'+px(iHoje).toFixed(1)+'" y1="'+MT+'" x2="'+px(iHoje).toFixed(1)+'" y2="'+(H-MB)+'" stroke="var(--line)" stroke-width="1"/>'
-    +'<path d="'+linhaFut+'" fill="none" stroke="var(--ac)" stroke-width="2" stroke-dasharray="4 3" opacity="0.5" stroke-linecap="round"/>'
-    +'<path d="'+linhaReal+'" fill="none" stroke="var(--ac)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+    +'<line x1="'+px(iHoje).toFixed(1)+'" y1="'+MT+'" x2="'+px(iHoje).toFixed(1)+'" y2="'+(H-MB)+'" stroke="var(--line)" stroke-width="1"/>'
+    +'<path d="'+d(idx.slice(iHoje))+'" fill="none" stroke="var(--ac)" stroke-width="2" stroke-dasharray="4 3" opacity="0.5" stroke-linecap="round"/>'
+    +'<path d="'+d(idx.slice(0,iHoje+1))+'" fill="none" stroke="var(--ac)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
     +'<circle cx="'+px(iHoje).toFixed(1)+'" cy="'+py(hoje).toFixed(1)+'" r="4" fill="var(--ac)" stroke="var(--bg2)" stroke-width="2"/>'
     +'<g id="grafMira" style="display:none"><line y1="'+MT+'" y2="'+(H-MB)+'" stroke="var(--tx3)" stroke-width="1"/>'
     +'<circle r="4" fill="var(--tx)" stroke="var(--bg2)" stroke-width="2"/></g>'
     +'<text id="grafTip" x="'+ML+'" y="9" font-size="9" fill="var(--tx2)" style="display:none"></text>'
     +'</svg>'
-    +'<label class="f" style="margin:12px 0 0"><span>Ponho de lado '+fmt(GRAF.aporte)+' por m\u00eas</span>'
-    +'<input type="range" id="grafAp" min="0" max="500" step="10" value="'+GRAF.aporte+'" style="width:100%"></label>'
-    +'<div class="chips" style="margin-top:4px">'
-    +[12,24,60].map(m=>'<button type="button" class="chip'+(GRAF.meses===m?" on":"")+'" data-gm="'+m+'">'
-      +(m<24?m+" meses":(m/12)+" anos")+'</button>').join("")+'</div>'
-    +(passado.length<2?'<p class="meta" style="margin-top:10px">A linha cheia come\u00e7a no teu ponto de partida mais antigo. Com o tempo, cada m\u00eas que passa acrescenta-lhe um ponto.</p>':'');
+    +'<label class="f" style="margin:12px 0 0"><span>Horizonte: '+horizonteTexto(meses)+'</span>'
+    +'<input type="range" id="grafH" min="1" max="100" step="1" value="'+GRAF.pos+'"></label>'
+    +(passado.length<2?'<p class="meta" style="margin-top:4px">A linha cheia come\u00e7a no ponto de partida desta conta. Cada m\u00eas que passa acrescenta-lhe um ponto.</p>':'');
 
-  const ipt=E("grafAp");
-  ipt.oninput=e=>{ GRAF.aporte=+e.target.value; rGraf(); };
-  corpo.querySelectorAll("[data-gm]").forEach(b=>b.onclick=()=>{ GRAF.meses=+b.dataset.gm; rGraf(); });
+  E("grafH").oninput=e=>{ GRAF.pos=+e.target.value; rGraf(); };
+  corpo.querySelectorAll("[data-ga]").forEach(b=>b.onclick=()=>{ GRAF.alvo=b.dataset.ga; rGraf(); });
 
   const svg=E("grafSvg"), mira=E("grafMira"), tip=E("grafTip");
   function aponta(cx){
@@ -674,14 +702,14 @@ function rGraf(){
     const x=(cx-r.left)/r.width*W;
     let i=Math.round((x-ML)/((W-ML-MR)/Math.max(1,pts.length-1)));
     i=Math.max(0,Math.min(pts.length-1,i));
-    const p=pts[i];
+    const q=pts[i];
     mira.style.display="";
     mira.querySelector("line").setAttribute("x1",px(i).toFixed(1));
     mira.querySelector("line").setAttribute("x2",px(i).toFixed(1));
     mira.querySelector("circle").setAttribute("cx",px(i).toFixed(1));
-    mira.querySelector("circle").setAttribute("cy",py(p.v).toFixed(1));
+    mira.querySelector("circle").setAttribute("cy",py(q.v).toFixed(1));
     tip.style.display="";
-    tip.textContent=rotuloMes(p.k)+"  \u00b7  "+fmt(p.v)+(p.fut?"  (proje\u00e7\u00e3o)":"");
+    tip.textContent=rotuloMes(q.k)+"  \u00b7  "+fmt(q.v)+(q.fut?"  (proje\u00e7\u00e3o)":"");
     tip.setAttribute("text-anchor", i>pts.length*0.6?"end":"start");
     tip.setAttribute("x", i>pts.length*0.6?(W-MR):ML);
   }
@@ -717,27 +745,36 @@ const DENTRO_MAIS=["import","config"];
 let VOLTA_PARA="orc";
 const ABAS=["orc","potes","contas","patrim","import"];
 function ligaDeslize(){
-  const alvo=E("app");
-  let x0=0,y0=0,vale=false;
-  alvo.addEventListener("touchstart",e=>{
-    vale=false;
+  // no documento inteiro: o conteudo nao chega ao fundo do ecra e o gesto
+  // tem de valer em qualquer sitio, barra de baixo e espaco vazio incluidos
+  let x0=0,y0=0,dx=0,dy=0,vale=false;
+  document.addEventListener("touchstart",e=>{
+    vale=false; dx=0; dy=0;
     if(e.touches.length!==1) return;
     if(E("sheets").innerHTML) return;                 // folha aberta manda ela
     if(ABAS.indexOf(view)<0) return;                  // vistas de dentro nao deslizam
     const t=e.target;
-    if(t.closest&&t.closest("#grafSvg,input[type=range],.chips,[data-noswipe]")) return;
+    if(t&&t.closest&&t.closest("#grafSvg,input[type=range],.chips,nav,[data-noswipe]")) return;
     x0=e.touches[0].clientX; y0=e.touches[0].clientY; vale=true;
-  },{passive:true});
-  alvo.addEventListener("touchend",e=>{
+  },{passive:true,capture:true});
+  document.addEventListener("touchmove",e=>{
+    if(!vale||e.touches.length!==1) return;
+    dx=e.touches[0].clientX-x0; dy=e.touches[0].clientY-y0;
+  },{passive:true,capture:true});
+  function decide(){
     if(!vale) return; vale=false;
-    const t=e.changedTouches[0];
-    const dx=t.clientX-x0, dy=t.clientY-y0;
-    if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.6) return;
-    const i=ABAS.indexOf(view);
-    const j=dx<0?i+1:i-1;
-    if(j<0||j>=ABAS.length) return;
+    if(Math.abs(dx)<50||Math.abs(dx)<Math.abs(dy)*1.4) return;
+    const i=ABAS.indexOf(view), j=dx<0?i+1:i-1;
+    if(i<0||j<0||j>=ABAS.length) return;
     go(ABAS[j]);
-  });
+  }
+  document.addEventListener("touchend",e=>{
+    if(vale&&e.changedTouches&&e.changedTouches.length===1){
+      dx=e.changedTouches[0].clientX-x0; dy=e.changedTouches[0].clientY-y0;
+    }
+    decide();
+  },{capture:true});
+  document.addEventListener("touchcancel",decide,{capture:true});
 }
 function go(v){
   view=v;
@@ -1335,7 +1372,7 @@ function pintaGatePin(){
 /* ---------- vista Património ---------- */
 let TICK=null, LONGO_ABERTO=false;
 function rPatrim(){
-  LONGO_ABERTO=false; GRAF.aberto=false; GRAF.aporte=null;
+  LONGO_ABERTO=false; GRAF.aberto=false;
   registaSnap(); save();
   setTimeout(rGraf,0);
   if(mostraGate()) return;
