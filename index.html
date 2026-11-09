@@ -395,7 +395,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="09/11 10:24";
+const BUILD="09/11 10:38";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -413,7 +413,7 @@ const DEF={
  contas:[
   {id:"revolut",n:"Revolut",tipo:"ordem",saldo:0,data:null},
   {id:"cgd",n:"CGD",tipo:"ordem",saldo:0,data:null},
-  {id:"tr",n:"Trade Republic — à ordem",tipo:"remunerada",subs:[],tanb:0,freq:"mensal",diaJuro:1,irs:28},
+  {id:"tr",n:"Trade Republic — à ordem",tipo:"remunerada",subs:[],tanb:0,freq:"mensal",diaJuro:1,irs:28,retencao:true},
   {id:"t212",n:"Trading 212 — à ordem",tipo:"remunerada",subs:[],tanb:0,freq:"diaria",horaJuro:"02:08",retencao:false},
   {id:"aforro",n:"Certificados de Aforro",tipo:"aforro",serie:"F",subs:[],tanb:2.5,premio:0,secundaria:true},
   {id:"trinv",n:"Trade Republic — carteira",tipo:"investimento",valor:0,investido:0,data:null}
@@ -429,6 +429,11 @@ function load(){
   if(!Array.isArray(S.movs))S.movs=[];
   if(!Array.isArray(S.hist))S.hist=[];
   if(!S.icons)S.icons=DEF.icons;
+  if(!S.mig8){
+    const tr=S.contas.find(c=>c.id==="tr");
+    if(tr){ tr.irs=(+tr.irs>0)?+tr.irs:28; tr.retencao=true; }
+    S.mig8=1;
+  }
   if(!S.mig7){
     S.contas.forEach(c=>{ if(c.tipo==="aforro"){ c.secundaria=true; c.oculta=false; } });
     S.mig7=1;
@@ -439,7 +444,7 @@ function load(){
     S.heroPote=S.heroPote||"correntes"; S.mig2=1;
   }
   if(!Array.isArray(S.contas)) S.contas=JSON.parse(JSON.stringify(DEF.contas));
-  S.irs=0;   // a app não modela imposto
+  // o imposto é por conta: c.irs (taxa) + c.retencao (descontado na origem)
   S.contas.forEach(c=>{
     if(c.tipo!=="aforro"&&c.tipo!=="remunerada") return;
     if(!Array.isArray(c.taxas)){
@@ -747,7 +752,13 @@ function sheetPote(id){
       +'<label class="f"><span>Comportamento</span><select id="pAc">'
       +'<option value="1"'+(base.acum?" selected":"")+'>Acumula o que não gastas</option>'
       +'<option value="0"'+(base.acum?"":" selected")+'>Reinicia todos os meses</option></select></label>'
-      +'<label class="f"><span>Objetivo (€, opcional)</span><input type="number" inputmode="decimal" id="pO" value="'+(base.obj||"")+'" placeholder="Sem objetivo"></label>';
+      +((nova||base.obj)
+        ? '<label class="f"><span>Tem um objetivo?</span><select id="pTemObj">'
+          +'<option value="0"'+(base.obj?"":" selected")+'>N\u00e3o</option>'
+          +'<option value="1"'+(base.obj?" selected":"")+'>Sim</option></select></label>'
+          +'<label class="f" id="pOWrap"'+(base.obj?'':' style="display:none"')+'><span>Quanto quero juntar (\u20ac)</span>'
+          +'<input type="number" inputmode="decimal" id="pO" value="'+(base.obj||"")+'" placeholder="Ex: 1000"></label>'
+        : '<button class="btn sec" id="pAddObj" style="margin:-4px 0 13px">+ Associar um objetivo</button>');
   }
   h+='<label class="f"><span>Vive em que conta</span><select id="pC"><option value="">\u2014</option>'
     +S.contas.map(c=>'<option value="'+c.id+'"'+(base.conta===c.id?" selected":"")+'>'+esc(c.n)+'</option>').join("")
@@ -770,6 +781,11 @@ function sheetPote(id){
     cor=b.dataset.cor; pintaCor();
   });
   pintaCor();
+  if(E("pTemObj")) E("pTemObj").onchange=e=>{
+    const w=E("pOWrap"); if(w) w.style.display=e.target.value==="1"?"":"none";
+    if(e.target.value==="0"&&E("pO")) E("pO").value="";
+  };
+  if(E("pAddObj")) E("pAddObj").onclick=()=>{ base.obj=0.01; sheetPote(id); };
   if(E("pRep")) E("pRep").onchange=e=>{ base.semRep=e.target.value==="0"; const w=E("pAlocWrap"); if(w) w.style.display=base.semRep?"none":""; };
   E("pOk").onclick=()=>{
     const n=E("pN").value.trim();
@@ -778,7 +794,8 @@ function sheetPote(id){
     if(E("pRep")){ d.semRep=E("pRep").value==="0"; if(d.semRep) d.aloc=0; }
     if(E("pA")) d.aloc=+E("pA").value||0;
     if(E("pAc")) d.acum=E("pAc").value==="1";
-    if(E("pO")){ const o=+E("pO").value; d.obj=o>0?o:null; }
+    if(E("pTemObj")&&E("pTemObj").value==="0") d.obj=null;
+    else if(E("pO")){ const o=+E("pO").value; d.obj=o>0?o:null; }
     if(nova){ S.potes.push(Object.assign(base,d)); }
     else { Object.assign(pote(id),d); }
     save(); closeSheet(); toast("Guardado"); render();
@@ -875,43 +892,7 @@ function estado(c,agora){
   const dias=Math.max(0,(agora-t0)/86400000);
   o.dias=dias;
 
-  if(false){
-    const r=(+c.tanb||0)/100;
-
-    if(c.freq==="mensal" && +c.diaJuro>=1){
-      const dia=Math.min(28,Math.max(1,+c.diaJuro));
-      let cap=base, creditado=0, retido=0, n=0;
-      let ini=t0, pag=new Date(t0.getFullYear(),t0.getMonth(),dia,0,0,0,0);
-      if(pag<=t0) pag=addMeses(pag,1);
-      while(pag<=agora && n<600){
-        const g=cap*r*((pag-ini)/86400000)/365;
-        const i=c.retencao ? g*(S.irs/100) : 0;
-        cap+=g-i; creditado+=g; retido+=i; n++;
-        ini=pag; pag=addMeses(pag,1);
-      }
-      const gPend=cap*r*((agora-ini)/86400000)/365;
-      o.capital=cap;
-      o.impostoPago=retido;
-      o.pendBruto=gPend;
-      o.pendLiq=c.retencao ? gPend*(1-S.irs/100) : gPend;
-      o.proxima=pag;
-      o.bruto=creditado+gPend;
-      o.reserva=c.retencao ? 0 : creditado*(S.irs/100);
-      o.liquido=o.bruto-(c.retencao?0:o.bruto*(S.irs/100));
-      o.valor=cap;
-      o.meu=cap-o.reserva;
-      return o;
-    }
-
-    o.bruto = c.freq==="diaria"
-      ? base*(Math.pow(1+r/365,dias)-1)
-      : base*(Math.pow(1+r/12,dias/30.4375)-1);
-    o.reserva = c.retencao ? 0 : o.bruto*(S.irs/100);
-    o.liquido = o.bruto-o.reserva;
-    o.valor = base+o.bruto;
-    o.meu = base+o.liquido;
-    return o;
-  }
+  /* motor antigo do aforro removido */
 
   return o;
 }
@@ -963,6 +944,7 @@ function estadoRemunerada(c,agora){
   const ORD={pag:0,taxa:1,mov:2};
   marcos.sort((a,b)=> (a.t-b.t) || (ORD[a.tipo]-ORD[b.tipo]));
 
+  const tx=(+c.irs||0)/100;
   let cap=0, creditado=0, retido=0, acum=0, posto=0, ult=inicio;
   function correr(ate){
     const d=(ate-ult)/86400000;
@@ -972,7 +954,7 @@ function estadoRemunerada(c,agora){
   marcos.forEach(m=>{
     correr(m.t);
     if(m.tipo==="pag"){
-      const i=c.retencao?acum*(S.irs/100):0;
+      const i=c.retencao?acum*tx:0;
       cap+=acum-i; creditado+=acum; retido+=i; acum=0;
     } else if(m.tipo==="taxa"){ r=m.v/100; }
     else { cap+=m.v; posto+=m.v; }
@@ -980,10 +962,10 @@ function estadoRemunerada(c,agora){
   correr(agora);
 
   o.investido=posto; o.capital=cap; o.impostoPago=retido;
-  o.pendBruto=acum; o.pendLiq=c.retencao?acum*(1-S.irs/100):acum;
+  o.pendBruto=acum; o.pendLiq=acum*(1-tx);
   o.bruto=creditado+acum;
-  o.reserva=c.retencao?0:creditado*(S.irs/100);
-  o.liquido=o.bruto-(c.retencao?0:o.bruto*(S.irs/100));
+  o.reserva=c.retencao?0:creditado*tx;
+  o.liquido=o.bruto*(1-tx);
   o.valor=cap;
   o.meu=cap-o.reserva;
   return o;
@@ -1228,17 +1210,17 @@ function pintaPatrim(){
         +'<span>'+fmt(posto)+' postos · '+(ganho>=0?"+":"")+fmt(ganho)+'</span></div>'
       +(vive
         ? '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:9px">'
-          +'<span class="meta">Juro '+((+c.irs>0)?'bruto':'acumulado')+'</span>'
+          +'<span class="meta">Juro '+((+c.irs>0)?'bruto acumulado':'acumulado')+'</span>'
           +'<b class="tnum" style="font-size:13.5px;color:var(--ac);font-feature-settings:\'tnum\'">+'
-          +fmt6(c.freq==="diaria"?(e.liquido||0):(e.pendLiq||0))+'</b></div>'
+          +fmt6(e.bruto||0)+'</b></div>'
         : '')
       +((+c.irs>0)
       ? '<div class="meta" style="margin-top:4px;display:flex;justify-content:space-between;gap:10px">'
-        +'<span>IRS '+(+c.irs).toLocaleString("pt-PT")+'%</span>'
-        +'<span style="color:var(--bad)">&minus;'+fmt((e.bruto||0)*c.irs/100)+'</span></div>'
+        +'<span>IRS '+(+c.irs).toLocaleString("pt-PT")+'% '+(c.retencao?"\u00b7 descontado pelo banco":"\u00b7 pagas tu depois")+'</span>'
+        +'<span style="color:var(--bad)">&minus;'+fmt((e.bruto||0)-(e.liquido||0))+'</span></div>'
         +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:3px">'
         +'<span class="meta">Juro líquido</span>'
-        +'<b class="tnum" style="font-size:13.5px">'+fmt((e.bruto||0)*(1-c.irs/100))+'</b></div>'
+        +'<b class="tnum" style="font-size:13.5px">'+fmt(e.liquido||0)+'</b></div>'
       : '')
     +(taxaVelha(c)?'<label class="chkTaxa"><input type="checkbox" data-vt="'+c.id+'">'
       +'<span>Taxa de '+fmtData(ultimaTaxa(c))+'. Confirmei que continua esta.</span></label>':'')
@@ -1367,7 +1349,10 @@ function sheetConta(id){
         +'<option value="0"'+(temIrs?"":" selected")+'>Não</option>'
         +'<option value="1"'+(temIrs?" selected":"")+'>Sim</option></select></label>'
         +(temIrs?'<label class="f"><span>Taxa de IRS (%)</span>'
-          +'<input type="number" inputmode="decimal" step="0.1" id="cIrs" value="'+(+c.irs)+'"></label>':'');
+          +'<input type="number" inputmode="decimal" step="0.1" id="cIrs" value="'+(+c.irs)+'"></label>'
+          +'<label class="f"><span>Quem entrega o imposto?</span><select id="cRet">'
+          +'<option value="1"'+(c.retencao?" selected":"")+'>O banco desconta logo no juro</option>'
+          +'<option value="0"'+(c.retencao?"":" selected")+'>Pago eu depois, no IRS</option></select></label>':'');
     }
 
     // --- 4. o resto ---
@@ -1440,6 +1425,7 @@ function sheetConta(id){
     if(E("cTemIrs")) E("cTemIrs").onchange=e=>{
       colher(); c.irs = e.target.value==="1" ? (+c.irs>0?+c.irs:28) : null; form();
     };
+    if(E("cRet")) E("cRet").onchange=e=>{ c.retencao=e.target.value==="1"; colher(); resumo(); };
     E("cT").onchange=e=>{
       colher(); c.tipo=e.target.value;
       if(c.tipo==="aforro"){
