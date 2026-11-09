@@ -65,6 +65,7 @@ header .mes{font-size:10.5px;color:var(--tx3);font-variant-numeric:tabular-nums;
 .pote .info{flex:1;min-width:0}
 .pote .nm{font-size:14px;font-weight:550;display:flex;justify-content:space-between;gap:8px}
 .pote .nm b{font-weight:650}
+.meta{font-size:11.5px;color:var(--tx3);line-height:1.45}
 .pote .meta{font-size:11.5px;color:var(--tx3);margin-top:3px}
 .pote .pbar{height:4px;background:var(--bg3);border-radius:2px;margin-top:7px;overflow:hidden}
 .pote .pbar i{display:block;height:100%;border-radius:2px}
@@ -219,6 +220,8 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
   <section id="v-potes" class="hide">
     <div class="card">
       <h3>Os meus potes</h3>
+      <p class="meta" style="margin:-4px 0 12px">O valor à direita é o que o pote tem agora.</p>
+      <div id="rolloverPotes"></div>
       <div id="potesTudo"></div>
       <div class="inline" style="margin-top:12px">
         <button class="btn sec" id="addPote" style="margin:0">+ Novo pote</button>
@@ -390,7 +393,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="09/11 09:27";
+const BUILD="09/11 09:33";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -559,15 +562,16 @@ function movHTML(m){
 
 let ORD_POTES=false;
 function rPotes(){
+  rRollover(checkRollover(),"rolloverPotes");
   const agora=mesKey(new Date());
   const N=S.potes.length;
   E("potesTudo").innerHTML=S.potes.map(p=>{
     const a=p.fix?totalFixas():(+p.aloc||0);
     const c=p.conta?conta(p.conta):null;
     const bits=[];
-    if(p.fix) bits.push("Alimentado pelo orçamento");
+    if(p.fix) bits.push("Recebe "+fmt(a)+"/m\u00eas, do Or\u00e7amento");
     else if(p.semRep) bits.push("Fora da repartição");
-    else bits.push(a>0?fmt(a)+"/mês":"Sem valor definido");
+    else bits.push(a>0?"Recebe "+fmt(a)+"/m\u00eas":"Sem valor definido");
     bits.push(p.fix?"Reinicia todos os meses":(p.acum?"Acumula o que sobra":"Reinicia todos os meses"));
     if(c) bits.push(esc(c.n));
     let barra="";
@@ -613,19 +617,20 @@ function rPotes(){
   E("ordPote").onclick=()=>{ ORD_POTES=!ORD_POTES; rPotes(); };
 }
 
-function rRollover(r){
-  const b=E("rolloverBanner");
+function rRollover(r,alvo){
+  const b=E(alvo||"rolloverBanner");
+  if(!b) return;
   if(r.novo){
+    const mes=mesNome(r.k).split(" ")[0];
     b.innerHTML='<div class="banner"><p>'+(r.primeiro
-      ? "Primeira utilização. Confirma o rendimento e as despesas fixas nos Ajustes, depois aplica a repartição deste mês."
-      : "Mudou o mês. Aplica a repartição de "+mesNome(r.k).toLowerCase()+" para distribuir "+fmt(S.rendimento)+" pelos potes.")
-      +'</p><button class="btn" id="doRoll">Aplicar repartição de '+mesNome(r.k).split(" ")[0]+'</button></div>';
-    E("doRoll").onclick=()=>{
+      ? "Os potes est\u00e3o vazios porque ainda n\u00e3o distribu\u00edste nenhuma mesada. Confirma o rendimento e as despesas no Or\u00e7amento e carrega aqui."
+      : "Os potes ainda n\u00e3o receberam a mesada de "+mesNome(r.k).toLowerCase()+". Carrega para lhes dar os "+fmt(S.rendimento)+" deste m\u00eas.")
+      +'</p><button class="btn" id="doRoll_'+(alvo||"orc")+'">Encher os potes de '+mes+'</button></div>';
+    E("doRoll_"+(alvo||"orc")).onclick=()=>{
       if(S.mesAtivo){S.hist.push({k:S.mesAtivo,gasto:gastosMes(S.mesAtivo).reduce((a,m)=>a+m.v,0)});}
-      aplicarMes(r.k); toast("Repartição aplicada"); render();
+      aplicarMes(r.k); toast("Potes cheios"); render();
     };
   } else b.innerHTML="";
-
 }
 
 function rOrc(){
