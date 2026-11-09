@@ -395,7 +395,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="09/11 10:11";
+const BUILD="09/11 10:24";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -1049,14 +1049,14 @@ function estadoAforro(c,agora){
 
 function patrimonio(agora){
   agora=agora||new Date();
-  let valor=0,meu=0,reserva=0,juroBruto=0,juroLiq=0,pend=0,longo=0;
+  let valor=0,meu=0,reserva=0,juroBruto=0,juroLiq=0,pend=0,longo=0,longoLiq=0;
   S.contas.forEach(c=>{
     const e=estado(c,agora);
-    if(c.secundaria){ longo+=e.valor; return; }
+    if(c.secundaria){ longo+=e.valor; longoLiq+=e.liquido; return; }
     valor+=e.valor; meu+=e.meu; reserva+=e.reserva;
     juroBruto+=e.bruto; juroLiq+=e.liquido; pend+=e.pendLiq;
   });
-  return {valor:valor,longo:longo,total:valor+longo,meu:meu,reserva:reserva,bruto:juroBruto,liquido:juroLiq,pend:pend};
+  return {valor:valor,longo:longo,longoLiq:longoLiq,total:valor+longo,meu:meu,reserva:reserva,bruto:juroBruto,liquido:juroLiq,pend:pend};
 }
 
 function fmt4(n){return (Math.round(n*10000)/10000).toLocaleString("pt-PT",{minimumFractionDigits:4,maximumFractionDigits:4})+" €";}
@@ -1151,8 +1151,9 @@ function rPatrim(){
   if(mostraGate()) return;
   pintaOlho();
   E("patOlho").onclick=()=>{
-    const tudo=!(S.patOculto&&S.ocJuro&&S.ocPend&&S.ocLongo);
-    S.patOculto=S.ocJuro=S.ocPend=S.ocLongo=tudo; save(); pintaOlho(); pintaPatrim(); };
+    const tudo=!(S.patOculto&&S.ocJuro&&S.ocPend&&S.ocTotJuro&&S.ocLongoJuro&&S.ocLongoTot);
+    S.patOculto=S.ocJuro=S.ocPend=S.ocTotJuro=S.ocLongoJuro=S.ocLongoTot=tudo;
+    S.contas.forEach(c=>c.ocultarValor=tudo); save(); pintaOlho(); pintaPatrim(); };
   pintaPatrim();
   if(TICK) clearInterval(TICK);
   TICK=setInterval(()=>{ if(view==="patrim") pintaPatrim(); else {clearInterval(TICK);TICK=null;} },1000);
@@ -1168,6 +1169,14 @@ function pintaOlho(){
 
 function pintaPatrim(){
   const agora=new Date(), P=patrimonio(agora);
+  if(!E("patBody").dataset.ocLigado){
+    E("patBody").dataset.ocLigado="1";
+    E("patBody").addEventListener("click",ev=>{
+      const el=ev.target.closest("[data-oc]"); if(!el) return;
+      ev.stopPropagation();
+      const k=el.dataset.oc; S[k]=!S[k]; save(); pintaPatrim();
+    });
+  }
 
   const hv=E("patTotal");
   hv.innerHTML=(Math.round(P.valor*100)/100).toLocaleString("pt-PT",{minimumFractionDigits:2,maximumFractionDigits:2})+"<small>€</small>";
@@ -1176,10 +1185,8 @@ function pintaPatrim(){
   const sub=[];
   sub.push('<div>Juro acumulado <b class="tnum'+(S.ocJuro?" oculto":"")+'" data-oc="ocJuro">'+fmt4(P.liquido)+'</b></div>');
   if(P.pend>0.004) sub.push('<div>Ainda por entrar na conta <b class="tnum'+(S.ocPend?" oculto":"")+'" data-oc="ocPend">'+fmt(P.pend)+'</b></div>');
-  if(P.longo>0.004) sub.push('<div style="margin-top:4px">Com longo prazo <b class="tnum'+(S.ocLongo?" oculto":"")+'" data-oc="ocLongo">'+fmt(P.total)+'</b></div>');
   E("patSub").innerHTML=sub.join("");
-  E("patSub").querySelectorAll("[data-oc]").forEach(el=>el.onclick=()=>{
-    const k=el.dataset.oc; S[k]=!S[k]; save(); pintaPatrim();});
+
 
   E("longoBody").innerHTML=S.contas.filter(c=>c.secundaria).map(c=>{
     const e=estado(c,agora);
@@ -1193,7 +1200,12 @@ function pintaPatrim(){
       +'<div class="info"><div class="nm"><span>'+esc(c.n)+'</span><b class="tnum">'+fmt(e.valor)+'</b></div>'
       +'<div class="meta">'+meta+'</div></div>'
       +'<span style="color:var(--tx3);margin-left:8px">›</span></button>';
-  }).join("")||'<div class="empty">Nada marcado como longo prazo.</div>';
+  }).join("")
+    +'<div class="row2" style="border:none;padding-top:12px"><span class="k">Juro acumulado com o Aforro</span>'
+    +'<span class="v ac tnum'+(S.ocLongoJuro?" oculto":"")+'" data-oc="ocLongoJuro">'+fmt4(P.liquido+P.longoLiq)+'</span></div>'
+    +'<div class="row2" style="border:none;padding-top:0"><span class="k">Patrim\u00f3nio total</span>'
+    +'<span class="v tnum'+(S.ocLongoTot?" oculto":"")+'" data-oc="ocLongoTot">'+fmt(P.total)+'</span></div>'
+    || '<div class="empty">Nada marcado como longo prazo.</div>';
   E("longoBody").querySelectorAll("[data-cc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.cc));
   E("cardLongo").classList.toggle("hide",!S.contas.some(c=>c.secundaria));
   E("longoBody").classList.toggle("hide",!LONGO_ABERTO);
@@ -1234,8 +1246,8 @@ function pintaPatrim(){
     +((+c.irs>0)?' &rarr; '+(bruta*(1-c.irs/100)).toFixed(2).replace(".",",")+'% efetiva':'')
 
       +'</div></div>';
-  }).join("")+'<div class="row2" style="border:none;padding-top:12px"><span class="k">Total acumulado</span>'
-    +'<span class="v ac tnum">'+fmt4(P.liquido)+'</span></div>'
+  }).join("")+'<div class="row2" style="border:none;padding-top:12px"><span class="k">Juro total acumulado</span>'
+    +'<span class="v ac tnum'+(S.ocTotJuro?" oculto":"")+'" data-oc="ocTotJuro">'+fmt4(P.liquido)+'</span></div>'
   :'<div class="empty">Preenche saldo, data e taxa numa conta para a simulação arrancar.</div>';
 
 }
