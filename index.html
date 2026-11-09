@@ -137,8 +137,8 @@ nav button.on{color:var(--ac)}
 .btn+.btn{margin-top:9px}
 
 /* ---------- forms ---------- */
-label.f{display:block;margin-bottom:13px}
-label.f span{display:block;font-size:12px;color:var(--tx3);margin-bottom:6px;font-weight:550}
+.f,label.f{display:block;margin-bottom:13px}
+.f>span,label.f span{display:block;font-size:12px;color:var(--tx3);margin-bottom:6px;font-weight:550}
 textarea{width:100%;padding:12px 13px;border-radius:11px;background:var(--bg3);
   border:1px solid var(--line);font-size:14px;resize:vertical;line-height:1.4;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
@@ -390,7 +390,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="09/11 09:16";
+const BUILD="09/11 09:22";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -730,7 +730,7 @@ function sheetPote(id){
   const usado=!nova&&((+base.saldo||0)!==0||S.movs.some(m=>m.pote===id));
   let h='<h2>'+(nova?"Novo pote":esc(base.n))+'</h2>'
     +'<label class="f"><span>Nome</span><input type="text" id="pN" value="'+esc(base.n)+'"></label>'
-    +'<label class="f"><span>Cor</span><div class="chips" id="pCor"></div></label>';
+    +'<div class="f"><span>Cor</span><div class="chips" id="pCor"></div></div>';
   if(!base.fix){
     h+='<label class="f"><span>Entra na repartição mensal da mesada?</span><select id="pRep">'
       +'<option value="1"'+(base.semRep?"":" selected")+'>Sim — recebe um valor todos os meses</option>'
@@ -752,6 +752,10 @@ function sheetPote(id){
     E("pCor").innerHTML=CORES.map(c=>'<button type="button" data-cor="'+c+'" style="width:46px;height:40px;padding:0;border-radius:12px;background:var(--bg3);'
       +'border:2px solid '+(c===cor?c:"transparent")+'">'
       +'<i style="display:block;width:16px;height:16px;border-radius:50%;background:'+c+';margin:0 auto;pointer-events:none"></i></button>').join("");
+    E("pCor").querySelectorAll("[data-cor]").forEach(b=>{
+      b.onclick=ev=>{ ev.preventDefault(); cor=b.dataset.cor; pintaCor(); };
+      b.addEventListener("touchend",ev=>{ ev.preventDefault(); cor=b.dataset.cor; pintaCor(); },{passive:false});
+    });
   }
   E("pCor").addEventListener("click",e=>{
     const b=e.target.closest("[data-cor]"); if(!b) return;
