@@ -47,6 +47,9 @@ header .mes{font-size:10.5px;color:var(--tx3);font-variant-numeric:tabular-nums;
 .hero .big{font-size:52px;font-weight:700;letter-spacing:-.04em;line-height:1;color:var(--ac)}
 .hero .big.neg{color:var(--bad)}
 .oculto{filter:blur(8px);user-select:none;pointer-events:auto}
+input.oculto:focus{filter:none}
+.seta{width:18px;flex:0 0 18px;text-align:right;color:var(--tx3);align-self:center}
+.nota{display:inline-block}
 .chkTaxa{display:flex;gap:9px;align-items:flex-start;margin-top:9px;padding:9px 10px;
   background:var(--bg3);border-radius:10px;font-size:12px;color:var(--tx2);line-height:1.4}
 .chkTaxa input{width:17px;height:17px;flex:0 0 17px;margin:1px 0 0;accent-color:var(--ac2)}
@@ -242,7 +245,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
       <h3>As minhas contas</h3>
       <div id="olhoContasWrap"></div>
       <div class="chips" id="hubModos" style="margin:0 0 12px"></div>
-      <div class="row2" id="hubTotal" style="padding:2px 0 10px"></div>
+      <div class="row2" id="hubTotal" style="padding:2px 30px 10px 0"></div>
       <p class="meta" id="hubAvisos" style="margin:0 0 10px;color:var(--bad)"></p>
       <div id="hubList"></div>
       <div class="inline" style="margin-top:12px">
@@ -256,8 +259,9 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
   <section id="v-orc" class="hide">
     <div id="rolloverBanner"></div>
 
-    <div class="card">
+    <div class="card" style="position:relative">
       <h3>Rendimento</h3>
+      <div id="olhoOrcWrap"></div>
       <label class="f"><span>Entrada mensal (€/mês)</span>
         <input type="number" id="cfRend" inputmode="decimal" step="1"></label>
       <label class="f" style="margin-top:12px"><span>Dia do mês em que recebes (1 a 28)</span>
@@ -303,6 +307,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
     <div class="card">
       <h3>A render agora</h3>
       <div id="rendeList"></div>
+      <button class="btn sec" id="addRende" style="margin-top:12px">+ Adicionar conta</button>
     </div>
     <div class="card hide" id="cardLongo" style="padding-top:14px;padding-bottom:14px">
       <button type="button" id="longoHdr" style="width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left">
@@ -410,7 +415,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="14/11 15:28";
+const BUILD="14/11 21:46";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -816,7 +821,11 @@ function rMes(){
 
 /* ---------- ajustes ---------- */
 function rPlano(){
+  const oc=S.ocOrc?" oculto":"";
+  E("olhoOrcWrap").innerHTML=botaoOlho("olhoOrc","Mostrar ou ocultar os valores do orçamento");
+  ligaOlho("olhoOrc","ocOrc",rPlano);
   E("cfRend").value=S.rendimento;
+  E("cfRend").className=oc.trim();
   E("cfRend").oninput=e=>{S.rendimento=+e.target.value||0;save();rConfigLight();};
 
   E("fixasList").innerHTML='<div class="inline" style="margin-bottom:5px">'
@@ -828,11 +837,11 @@ function rPlano(){
     '<div class="inline" style="margin-bottom:8px"><input type="text" value="'+esc(f.n)+'" data-fn="'+i+'" placeholder="Nome">'
     +'<select data-ff="'+i+'" style="max-width:96px"><option value="1"'+(f.f!==false?" selected":"")+'>Fixa</option>'
     +'<option value="0"'+(f.f===false?" selected":"")+'>Variável</option></select>'
-    +'<input type="number" inputmode="decimal" value="'+f.v+'" data-fv="'+i+'" placeholder="€" style="max-width:84px">'
+    +'<input type="number" inputmode="decimal" value="'+f.v+'" data-fv="'+i+'" placeholder="€" class="'+oc.trim()+'" style="max-width:84px">'
     +'<button class="x" data-fx="'+i+'">×</button></div>').join("")
-    +'<div class="row2" style="margin-top:6px"><span class="k">Despesas fixas</span><span class="v tnum" id="totFix">'+fmt(somaFixas())+'</span></div>'
-    +'<div class="row2"><span class="k">Despesas vari\u00e1veis</span><span class="v tnum" id="totVar">'+fmt(somaVars())+'</span></div>'
-    +'<div class="row2"><span class="k">Despesas totais</span><span class="v ac tnum" id="totOrc">'+fmt(totalFixas())+'</span></div>';
+    +'<div class="row2" style="margin-top:6px"><span class="k">Despesas fixas</span><span class="v tnum'+oc+'" id="totFix">'+fmt(somaFixas())+'</span></div>'
+    +'<div class="row2"><span class="k">Despesas vari\u00e1veis</span><span class="v tnum'+oc+'" id="totVar">'+fmt(somaVars())+'</span></div>'
+    +'<div class="row2"><span class="k">Despesas totais</span><span class="v ac tnum'+oc+'" id="totOrc">'+fmt(totalFixas())+'</span></div>';
   E("fixasList").querySelectorAll("[data-ff]").forEach(el=>el.onchange=e=>{
     S.fixas[+el.dataset.ff].f=e.target.value==="1"; save(); rPlano();});
   E("fixasList").querySelectorAll("[data-fn]").forEach(el=>el.oninput=e=>{S.fixas[+el.dataset.fn].n=e.target.value;save();});
@@ -1276,6 +1285,8 @@ function pintaPatrim(){
     E("patBody").dataset.ocLigado="1";
     E("patBody").addEventListener("click",ev=>{
       const v=ev.target.closest("[data-ocl]"), j=ev.target.closest("[data-ocj]");
+      const ed=ev.target.closest("[data-ce]");
+      if(ed){ ev.stopPropagation(); sheetConta(ed.dataset.ce); return; }
       if(v||j){
         ev.stopPropagation();
         const c=conta((v||j).dataset.ocl||(v||j).dataset.ocj);
@@ -1303,9 +1314,11 @@ function pintaPatrim(){
     let meta=TIPOS[c.tipo];
     if(c.tipo==="remunerada"&&taxaAtual(c)) meta+=" · "+taxaAtual(c).toLocaleString("pt-PT")+"% TANB "
       +(c.freq==="diaria"?("Diária às "+(c.horaJuro||"00:00")):("Mensal, dia "+(c.diaJuro||1)));
-    if(c.tipo==="aforro") meta="Série "+(c.serie||"F")+" · Investido "+fmt(e.investido||0)
+    if(c.tipo==="aforro") meta="Série "+(c.serie||"F")
+      +' · Investido <span class="tnum'+(c.ocultarValor?" oculto":"")+'">'+fmt(e.investido||0)+'</span>'
       +" · "+(taxaAtual(c)+(+c.premio||0)).toLocaleString("pt-PT")+"%";
-    if(c.tipo==="investimento"&&e.ganho) meta+=" · "+(e.ganho>=0?"+":"")+fmt(e.ganho);
+    if(c.tipo==="investimento"&&e.ganho) meta+=' · <span class="tnum'+(c.ocultarValor?" oculto":"")+'">'
+      +(e.ganho>=0?"+":"")+fmt(e.ganho)+'</span>';
     return '<div class="pote" style="display:flex">'
       +'<div class="info">'
       +'<div class="nm"><button type="button" data-cc="'+c.id+'" style="flex:1;min-width:0;text-align:left;font:inherit;color:inherit">'
@@ -1317,6 +1330,7 @@ function pintaPatrim(){
       +'</div></div>';
   }).join("")
     || '<div class="empty">Nada marcado como longo prazo.</div>';
+  E("addRende").onclick=()=>sheetConta(null);
   E("longoBody").querySelectorAll("[data-cc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.cc));
   E("cardLongo").classList.toggle("hide",!S.contas.some(c=>c.secundaria));
   E("longoBody").classList.toggle("hide",!LONGO_ABERTO);
@@ -1349,7 +1363,8 @@ function pintaPatrim(){
     const ocv=c.ocultarValor?" oculto":"", ocj=c.ocultarJuro?" oculto":"";
     return '<div style="padding:14px 0;border-bottom:1px solid var(--line)">'
       +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">'
-        +'<span style="font-size:14.5px;font-weight:550">'+esc(c.n)+'</span>'
+        +'<button type="button" data-ce="'+c.id+'" style="font:inherit;color:inherit;font-size:14.5px;font-weight:550;text-align:left;flex:1;min-width:0">'
+          +esc(c.n)+'<span class="seta" style="display:inline;margin-left:5px">\u203A</span></button>'
         +'<b class="tnum'+ocv+'" data-ocl="'+c.id+'" style="font-size:17px">'+fmt(e.valor)+'</b></div>'
       +'<div class="meta" style="margin-top:4px;display:flex;justify-content:space-between;gap:10px">'
         +'<span>Na conta</span>'
@@ -1457,14 +1472,15 @@ function rHub(){
         +' style="width:32px;height:32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px;opacity:'+(ix===0?".3":"1")+'">\u2191</button>'
         +'<button type="button" data-cd="'+c.id+'" aria-label="Descer"'+(ix===N-1?' disabled':'')
         +' style="width:32px;height:32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px;opacity:'+(ix===N-1?".3":"1")+'">\u2193</button></span>'
-      : '<span style="color:var(--tx3);margin-left:8px;align-self:center">\u203A</span>';
+      : '<span class="seta">\u203A</span>';
 
     return '<button type="button"'+(ORD_CONTAS?'':' data-hc="'+c.id+'"')+' class="pote" style="width:100%;text-align:left;display:flex">'
       +'<div class="info"><div class="nm"><span>'+esc(c.n)+'</span>'
       +'<div style="display:flex;align-items:baseline;gap:2px"><b class="tnum'+(esconde?" oculto":"")+'">'+fmt(mensal?esp:saldo)+'</b>'
       +(mensal&&esp>0?'<span class="meta">/m\u00eas</span>':'')+'</div></div>'
       +'<div class="meta">'+linha.join(" &middot; ")+'</div>'
-      +(notas.length?'<div class="meta" style="margin-top:3px">'+notas.join(" &middot; ")+'</div>':'')
+      +(notas.length?'<div class="meta" style="margin-top:3px">'
+        +notas.map(x=>'<span class="nota">'+x+'</span>').join('<span class="nota" style="margin:0 5px">&middot;</span>')+'</div>':'')
       +'</div>'+dir+'</button>';
   }).join("")||'<div class="empty">Ainda n\u00e3o tens contas.</div>';
 
