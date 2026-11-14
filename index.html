@@ -410,7 +410,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="14/11 15:15";
+const BUILD="14/11 15:22";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -715,28 +715,30 @@ function rPotes(){
   E("potesTudo").innerHTML=S.potes.map(p=>{
     const a=p.fix?totalFixas():(+p.aloc||0);
     const c=p.conta?conta(p.conta):null;
+    const oc=S.ocPotes?" oculto":"";
+    const eur=v=>'<span class="tnum'+oc+'">'+fmt(v)+'</span>';
     const bits=[];
-    if(p.fix) bits.push("Recebe "+fmt(a)+"/m\u00eas, do Or\u00e7amento");
+    if(p.fix) bits.push("Recebe "+eur(a)+"/m\u00eas, do Or\u00e7amento");
     else if(p.semRep) bits.push("Fora da repartição");
-    else bits.push(a>0?"Recebe "+fmt(a)+"/m\u00eas":"Sem valor definido");
+    else bits.push(a>0?"Recebe "+eur(a)+"/m\u00eas":"Sem valor definido");
     bits.push(p.fix?"Reinicia todos os meses":(p.acum?"Acumula o que sobra":"Reinicia todos os meses"));
     if(c) bits.push(espelha(p)?"Espelha a "+esc(c.n):esc(c.n));
     let barra="";
     if(p.obj){
       const sld=saldoPote(p);
       const pc=Math.min(100,(sld/p.obj)*100);
-      barra='<div class="pbar" style="margin-top:8px"><i style="width:'+pc+'%;background:'+p.c+'"></i></div>'
-        +'<div class="meta" style="margin-top:5px">Objetivo '+fmt(p.obj)+' &middot; Faltam '+fmt(Math.max(0,p.obj-sld))+'</div>';
+      barra='<div class="pbar'+oc+'" style="margin-top:8px"><i style="width:'+(S.ocPotes?100:pc)+'%;background:'+p.c+'"></i></div>'
+        +'<div class="meta" style="margin-top:5px">Objetivo '+eur(p.obj)+' &middot; Faltam '+eur(Math.max(0,p.obj-sld))+'</div>';
     } else if(!p.fix){
       const gs=gastosMes(agora).filter(m=>m.pote===p.id).reduce((x,m)=>x+m.v,0);
-      if(gs>0) barra='<div class="meta" style="margin-top:6px">'+fmt(gs)+' gastos este mês</div>';
+      if(gs>0) barra='<div class="meta" style="margin-top:6px">'+eur(gs)+' gastos este mês</div>';
     }
     return '<div style="padding:14px 0;border-bottom:1px solid var(--line)">'
       +'<div style="display:flex;align-items:center;gap:11px">'
         +'<i style="width:9px;height:9px;border-radius:50%;background:'+p.c+';flex:0 0 9px"></i>'
         +'<button type="button" data-pe="'+p.id+'" style="flex:1;min-width:0;text-align:left;display:flex;justify-content:space-between;align-items:baseline;gap:10px">'
           +'<span style="font-size:14.5px;font-weight:550">'+esc(p.n)+'</span>'
-          +'<b class="tnum'+(S.ocPotes?" oculto":"")+'" style="font-size:16px">'+fmt(saldoPote(p))+'<span style="opacity:.3;font-weight:400;margin-left:5px">\u203A</span></b></button>'
+          +'<b class="tnum'+oc+'" style="font-size:16px">'+fmt(saldoPote(p))+'<span style="opacity:.3;font-weight:400;margin-left:5px">\u203A</span></b></button>'
         +(ORD_POTES
           ? '<button type="button" data-pu="'+p.id+'" aria-label="Subir" style="width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px">\u2191</button>'
             +'<button type="button" data-pdn="'+p.id+'" aria-label="Descer" style="width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px">\u2193</button>'
@@ -774,7 +776,7 @@ function rRollover(r,alvo){
     const mes=mesNome(r.k).split(" ")[0];
     b.innerHTML='<div class="banner"><p>'+(r.primeiro
       ? "Os potes est\u00e3o vazios porque ainda n\u00e3o distribu\u00edste nenhuma mesada. Confirma o rendimento e as despesas no Or\u00e7amento e carrega aqui."
-      : "Os potes ainda n\u00e3o receberam a mesada de "+mesNome(r.k).toLowerCase()+". Carrega para lhes dar os "+fmt(S.rendimento)+" deste m\u00eas.")
+      : "Os potes ainda n\u00e3o receberam a mesada de "+mesNome(r.k).toLowerCase()+". Carrega para lhes dar os <span class=\"tnum"+((alvo==="rolloverPotes"&&S.ocPotes)?" oculto":"")+"\">"+fmt(S.rendimento)+"</span> deste m\u00eas.")
       +'</p><button class="btn" id="doRoll_'+(alvo||"orc")+'">Encher os potes de '+mes+'</button></div>';
     E("doRoll_"+(alvo||"orc")).onclick=()=>{
       if(S.mesAtivo){S.hist.push({k:S.mesAtivo,gasto:gastosMes(S.mesAtivo).reduce((a,m)=>a+m.v,0)});}
@@ -1241,7 +1243,7 @@ function rPatrim(){
   E("patOlho").onclick=()=>{
     const tudo=!(S.patOculto&&S.ocJuro&&S.ocPend&&S.ocTotJuro&&S.ocTotA&&S.ocTotL&&S.ocTotT&&S.ocTotJ);
     S.patOculto=S.ocJuro=S.ocPend=S.ocTotJuro=S.ocTotA=S.ocTotL=S.ocTotT=S.ocTotJ=tudo;
-    S.contas.forEach(c=>c.ocultarValor=tudo); save(); pintaOlho(); pintaPatrim(); };
+    S.contas.forEach(c=>{ c.ocultarValor=tudo; c.ocultarJuro=tudo; }); save(); pintaOlho(); pintaPatrim(); };
   pintaPatrim();
   if(TICK) clearInterval(TICK);
   TICK=setInterval(()=>{ if(view==="patrim") pintaPatrim(); else {clearInterval(TICK);TICK=null;} },1000);
@@ -1271,6 +1273,13 @@ function pintaPatrim(){
   if(!E("patBody").dataset.ocLigado){
     E("patBody").dataset.ocLigado="1";
     E("patBody").addEventListener("click",ev=>{
+      const v=ev.target.closest("[data-ocl]"), j=ev.target.closest("[data-ocj]");
+      if(v||j){
+        ev.stopPropagation();
+        const c=conta((v||j).dataset.ocl||(v||j).dataset.ocj);
+        if(c){ if(v) c.ocultarValor=!c.ocultarValor; else c.ocultarJuro=!c.ocultarJuro; save(); pintaPatrim(); }
+        return;
+      }
       const el=ev.target.closest("[data-oc]"); if(!el) return;
       ev.stopPropagation();
       const k=el.dataset.oc; S[k]=!S[k]; save(); pintaPatrim();
@@ -1307,10 +1316,6 @@ function pintaPatrim(){
   }).join("")
     || '<div class="empty">Nada marcado como longo prazo.</div>';
   E("longoBody").querySelectorAll("[data-cc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.cc));
-  E("longoBody").querySelectorAll("[data-ocl]").forEach(el=>el.onclick=()=>{
-    const c=conta(el.dataset.ocl); if(c){ c.ocultarValor=!c.ocultarValor; save(); pintaPatrim(); }});
-  E("longoBody").querySelectorAll("[data-ocj]").forEach(el=>el.onclick=()=>{
-    const c=conta(el.dataset.ocj); if(c){ c.ocultarJuro=!c.ocultarJuro; save(); pintaPatrim(); }});
   E("cardLongo").classList.toggle("hide",!S.contas.some(c=>c.secundaria));
   E("longoBody").classList.toggle("hide",!LONGO_ABERTO);
   E("longoChev").style.transform=LONGO_ABERTO?"rotate(90deg)":"";
@@ -1339,26 +1344,27 @@ function pintaPatrim(){
     const posto=e.investido||0;
     const ganho=e.valor-posto;
     const vive=(e.pendLiq||0)>0 || c.freq==="diaria";
+    const ocv=c.ocultarValor?" oculto":"", ocj=c.ocultarJuro?" oculto":"";
     return '<div style="padding:14px 0;border-bottom:1px solid var(--line)">'
       +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">'
         +'<span style="font-size:14.5px;font-weight:550">'+esc(c.n)+'</span>'
-        +'<b class="tnum'+(c.ocultarValor?" oculto":"")+'" style="font-size:17px">'+fmt(e.valor)+'</b></div>'
+        +'<b class="tnum'+ocv+'" data-ocl="'+c.id+'" style="font-size:17px">'+fmt(e.valor)+'</b></div>'
       +'<div class="meta" style="margin-top:4px;display:flex;justify-content:space-between;gap:10px">'
         +'<span>Na conta</span>'
-        +'<span>'+fmt(posto)+' postos · '+(ganho>=0?"+":"")+fmt(ganho)+'</span></div>'
+        +'<span class="'+ocv.trim()+'">'+fmt(posto)+' postos · '+(ganho>=0?"+":"")+fmt(ganho)+'</span></div>'
       +(vive
         ? '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:9px">'
           +'<span class="meta">Juro '+((+c.irs>0)?'bruto acumulado':'acumulado')+'</span>'
-          +'<b class="tnum" style="font-size:13.5px;color:var(--ac);font-feature-settings:\'tnum\'">+'
+          +'<b class="tnum'+ocj+'" data-ocj="'+c.id+'" style="font-size:13.5px;color:var(--ac);font-feature-settings:\'tnum\'">+'
           +fmt6(e.bruto||0)+'</b></div>'
         : '')
       +((+c.irs>0)
       ? '<div class="meta" style="margin-top:4px;display:flex;justify-content:space-between;gap:10px">'
         +'<span>IRS '+(+c.irs).toLocaleString("pt-PT")+'% '+(c.retencao?"\u00b7 descontado pelo banco":"\u00b7 pagas tu depois")+'</span>'
-        +'<span style="color:var(--bad)">&minus;'+fmt((e.bruto||0)-(e.liquido||0))+'</span></div>'
+        +'<span class="'+ocj.trim()+'" style="color:var(--bad)">&minus;'+fmt((e.bruto||0)-(e.liquido||0))+'</span></div>'
         +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:3px">'
         +'<span class="meta">Juro líquido</span>'
-        +'<b class="tnum" style="font-size:13.5px">'+fmt(e.liquido||0)+'</b></div>'
+        +'<b class="tnum'+ocj+'" data-ocj="'+c.id+'" style="font-size:13.5px">'+fmt(e.liquido||0)+'</b></div>'
       : '')
     +(taxaVelha(c)?'<label class="chkTaxa"><input type="checkbox" data-vt="'+c.id+'">'
       +'<span>Taxa de '+fmtData(ultimaTaxa(c))+'. Confirmei que continua esta.</span></label>':'')
@@ -1419,13 +1425,15 @@ function rHub(){
     else if(aqui.length) linha.push("Pote: "+aqui.map(p=>esc(p.n)).join(", "));
     else linha.push('<span style="color:var(--tx3)">Sem finalidade definida</span>');
 
+    const esconde=c.ocultarValor||S.ocContas;
+    const eur=v=>'<span class="tnum'+(esconde?" oculto":"")+'">'+fmt(v)+'</span>';
     const notas=[];
     if(esp>0){
       const d=saldo-esp;
-      if(Math.abs(d)<0.01) notas.push('<span style="color:var(--ac)">Bate certo com os '+fmt(esp)+' esperados</span>');
+      if(Math.abs(d)<0.01) notas.push('<span style="color:var(--ac)">Bate certo com os </span>'+eur(esp)+'<span style="color:var(--ac)"> esperados</span>');
       else { mal++; notas.push(mensal
-        ? '<span style="color:var(--tx3)">Tem agora </span>'+fmt(saldo)+'<span style="color:var(--'+(d<0?"bad":"ac")+')"> ('+(d>0?"+":"")+fmt(d)+')</span>'
-        : '<span style="color:var(--'+(d<0?"bad":"ac")+')">'+(d>0?"+":"")+fmt(d)+'</span> <span style="color:var(--tx3)">face aos '+fmt(esp)+' esperados</span>'); }
+        ? '<span style="color:var(--tx3)">Tem agora </span>'+eur(saldo)+'<span style="color:var(--'+(d<0?"bad":"ac")+')"> ('+(d>0?"+":"")+'</span>'+eur(Math.abs(d))+'<span style="color:var(--'+(d<0?"bad":"ac")+')">)</span>'
+        : '<span style="color:var(--'+(d<0?"bad":"ac")+')">'+(d>0?"+":"\u2212")+'</span>'+eur(Math.abs(d))+' <span style="color:var(--tx3)">face aos </span>'+eur(esp)+'<span style="color:var(--tx3)"> esperados</span>'); }
     } else if(mensal){
       notas.push('<span style="color:var(--tx3)">Sem valor mensal definido</span>');
     }
@@ -1437,7 +1445,7 @@ function rHub(){
     }
     if(!mensal&&aqui.length&&!aqui.some(p=>espelha(p))){
       const resto=saldo-aqui.reduce((a,p)=>a+saldoPote(p),0);
-      if(Math.abs(resto)>=0.01) notas.push('<span style="color:var(--tx3)">N\u00e3o atribu\u00eddo a nenhum pote: </span>'+fmt(resto));
+      if(Math.abs(resto)>=0.01) notas.push('<span style="color:var(--tx3)">N\u00e3o atribu\u00eddo a nenhum pote: </span>'+eur(resto));
     }
     if(mal) alertas++;
 
@@ -1451,7 +1459,8 @@ function rHub(){
 
     return '<button type="button"'+(ORD_CONTAS?'':' data-hc="'+c.id+'"')+' class="pote" style="width:100%;text-align:left;display:flex">'
       +'<div class="info"><div class="nm"><span>'+esc(c.n)+'</span>'
-      +'<b class="tnum'+(c.ocultarValor||S.ocContas?" oculto":"")+'">'+fmt(mensal?esp:saldo)+(mensal&&esp>0?'<span style="font-weight:400;color:var(--tx3)">/m\u00eas</span>':'')+'</b></div>'
+      +'<div style="display:flex;align-items:baseline;gap:2px"><b class="tnum'+(esconde?" oculto":"")+'">'+fmt(mensal?esp:saldo)+'</b>'
+      +(mensal&&esp>0?'<span class="meta">/m\u00eas</span>':'')+'</div></div>'
       +'<div class="meta">'+linha.join(" &middot; ")+'</div>'
       +(notas.length?'<div class="meta" style="margin-top:3px">'+notas.join(" &middot; ")+'</div>':'')
       +'</div>'+dir+'</button>';
