@@ -410,7 +410,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="14/11 15:22";
+const BUILD="14/11 15:28";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -588,7 +588,7 @@ function checkRollover(){
 const TITULOS={potes:"Potes",orc:"Orçamento",contas:"Contas",patrim:"Património",
   mes:"Histórico",import:"Importar extrato",config:"Ajustes"};
 const VISTAS=["orc","potes","contas","patrim","mes","import","config"];
-const DENTRO_MAIS=["import","config"];
+const DENTRO_MAIS=["mes","config"];
 let VOLTA_PARA="orc";
 const ABAS=["orc","potes","contas","patrim","import"];
 function ligaDeslize(){
@@ -680,7 +680,9 @@ function ligaDeslize(){
 function go(v){
   view=v;
   VISTAS.forEach(x=>E("v-"+x).classList.toggle("hide",x!==v));
-  const activa=DENTRO_MAIS.indexOf(v)>-1?(VOLTA_PARA==="mes"?"mes":"orc"):v;
+  let activa=v;
+  if(v==="mes") activa="import";                         // Estatísticas vive dentro do Importar
+  else if(DENTRO_MAIS.indexOf(v)>-1) activa=(VOLTA_PARA==="mes"?"import":(VOLTA_PARA||"orc"));
   document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===activa));
   E("viewTitle").textContent=TITULOS[v];
   E("btnVoltar").classList.toggle("hide",DENTRO_MAIS.indexOf(v)<0);
