@@ -197,7 +197,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 
 <div id="lock" class="hide">
   <div class="t">Mesada</div>
-  <div class="s">Introduz o código</div>
+  <div class="s" id="lockSub">Introduz o código</div>
   <div class="pins" id="pins"></div>
   <div class="kp" id="lockkp"></div>
 </div>
@@ -239,10 +239,14 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
   <section id="v-contas" class="hide">
     <div class="card">
       <h3>As minhas contas</h3>
+      <div class="chips" id="hubModos" style="margin:0 0 12px"></div>
       <div class="row2" id="hubTotal" style="border:none;padding:0 0 4px"></div>
       <p class="meta" id="hubAvisos" style="margin:0 0 10px;color:var(--bad)"></p>
       <div id="hubList"></div>
-      <button class="btn sec" id="addConta" style="margin-top:12px">+ Adicionar conta</button>
+      <div class="inline" style="margin-top:12px">
+        <button class="btn sec" id="addConta" style="margin:0">+ Adicionar conta</button>
+        <button class="btn sec" id="ordConta" style="margin:0;max-width:130px">Reordenar</button>
+      </div>
     </div>
   </section>
 
@@ -285,16 +289,14 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 
   <!-- ============ PATRIMÓNIO ============ -->
   <section id="v-patrim" class="hide">
-    <div id="patGate"></div>
     <div id="patBody">
-    <div class="card hero" style="padding:24px 16px 20px;position:relative">
+    <div class="card hero" style="padding:18px 16px 15px;position:relative">
       <button id="patOlho" aria-label="Mostrar ou ocultar o total"
         style="position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:10px;
         display:flex;align-items:center;justify-content:center"></button>
       <div class="lbl">Património agora</div>
       <div class="big tnum" id="patTotal">0<small>€</small></div>
       <div class="sub" id="patSub"></div>
-      <div class="meta" style="margin-top:9px;opacity:.5">Toca em cada valor para o ocultar.</div>
     </div>
     <div class="card">
       <h3>A render agora</h3>
@@ -305,6 +307,13 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
         <span style="font-size:14.5px;font-weight:600">Longo prazo</span>
         <span id="longoChev" style="color:var(--tx3);font-size:17px">›</span></button>
       <div id="longoBody" class="hide" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card" id="cardTotal" style="padding-top:14px;padding-bottom:14px">
+      <button type="button" id="totHdr" style="width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left">
+        <span style="font-size:14.5px;font-weight:600">Património total</span>
+        <span id="totChev" style="color:var(--tx3);font-size:17px">›</span></button>
+      <div id="totBody" class="hide" style="margin-top:12px"></div>
     </div>
 
 
@@ -355,13 +364,14 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 
 
     <div class="card">
-      <h3>Proteger o Património</h3>
-      <label class="f"><span>Pedir autenticação para abrir o separador</span>
+      <h3>Proteger a app</h3>
+      <label class="f"><span>Pedir autenticação para abrir a app</span>
         <select id="cfPatLock">
           <option value="off">Não pedir</option>
           <option value="pin">Código de 4 dígitos</option>
           <option value="faceid">Face ID</option>
         </select></label>
+      <div id="cfQuandoWrap"></div>
       <div id="patLockInfo"></div>
     </div>
 
@@ -398,7 +408,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="14/11 12:16";
+const BUILD="14/11 12:28";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -792,11 +802,17 @@ function rConfig(){
       try{ S.patCred=await faceIdRegistar(); }
       catch(err){ toast("Registo cancelado"); e.target.value=S.patLock||"off"; return; }
     }
-    if(v==="pin"&&!S.pin){ toast("Define primeiro o código de acesso abaixo"); e.target.value=S.patLock||"off"; return; }
-    S.patLock=v; PAT_OK=false; save(); rConfig();
+    if(v==="pin"&&!S.pin){ toast("Define primeiro o código, no cartão abaixo"); e.target.value=S.patLock||"off"; return; }
+    S.patLock=v; save(); rConfig();
   };
+  E("cfQuandoWrap").innerHTML = (S.patLock==="off") ? ""
+    : '<label class="f"><span>Quando pedir</span><select id="cfQuando">'
+      +[["0","Sempre que abro"],["5","Se estiver fechada h\u00e1 mais de 5 minutos"],["60","Se estiver fechada h\u00e1 mais de 1 hora"]]
+        .map(o=>'<option value="'+o[0]+'"'+(String(S.lockQuando==null?0:S.lockQuando)===o[0]?" selected":"")+'>'+o[1]+'</option>').join("")
+      +'</select></label>';
+  if(E("cfQuando")) E("cfQuando").onchange=e=>{ S.lockQuando=+e.target.value; save(); };
   E("patLockInfo").innerHTML = (S.patLock==="off")?""
-    :'<p class="note">Protege contra quem te pegue no telemóvel. Não é encriptação: os dados continuam legíveis por quem abra as ferramentas de programador ou o ficheiro exportado.</p>';
+    :'<p class="note">Protege contra quem te pegue no telemóvel com ele desbloqueado. Não é encriptação: os dados continuam legíveis por quem abra as ferramentas de programador ou o ficheiro exportado.</p>';
 
   E("pinArea").innerHTML=S.pin
     ? '<button class="btn dang" id="pinOff">Remover código</button>'
@@ -1123,7 +1139,6 @@ function fmt4(n){return (Math.round(n*10000)/10000).toLocaleString("pt-PT",{mini
 function fmt6(n){return n.toLocaleString("pt-PT",{minimumFractionDigits:6,maximumFractionDigits:6})+" €";}
 
 /* ---------- Face ID / bloqueio do Património ---------- */
-let PAT_OK=false;
 const b64=b=>btoa(String.fromCharCode.apply(null,new Uint8Array(b))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 function unb64(t){
   const p=t.replace(/-/g,"+").replace(/_/g,"/");
@@ -1159,61 +1174,15 @@ async function faceIdPedir(idB64){
   return !!r;
 }
 
-let gatePin="";
-function mostraGate(){
-  const modo=S.patLock||"off";
-  const corpo=E("patBody"), gate=E("patGate");
-  if(modo==="off"||PAT_OK){ gate.innerHTML=""; corpo.classList.remove("hide"); return false; }
-  corpo.classList.add("hide");
-  if(modo==="faceid"){
-    gate.innerHTML='<div class="card" style="text-align:center;padding:38px 20px">'
-      +'<div style="font-size:15px;font-weight:600;margin-bottom:6px">Património protegido</div>'
-      +'<div class="meta" style="margin-bottom:22px">Autentica-te para ver saldos e contas</div>'
-      +'<button class="btn" id="gFace">Desbloquear com Face ID</button>'
-      +(S.pin?'<button class="btn sec" id="gAlt">Usar o código da app</button>':'')
-      +'<p class="note" id="gErr" style="margin-top:12px"></p></div>';
-    E("gFace").onclick=async()=>{
-      try{
-        await faceIdPedir(S.patCred);
-        PAT_OK=true; gate.innerHTML=""; corpo.classList.remove("hide"); rPatrim();
-      }catch(err){ E("gErr").textContent="Não foi possível autenticar. "+(err&&err.name==="NotAllowedError"?"Cancelado ou sem permissão nesta janela.":"Tenta abrir a app a partir do ecrã principal."); }
-    };
-    if(E("gAlt")) E("gAlt").onclick=()=>{S.patLockTemp="pin";gatePin="";pintaGatePin();};
-    return true;
-  }
-  pintaGatePin();
-  return true;
-}
-function pintaGatePin(){
-  const gate=E("patGate");
-  gate.innerHTML='<div class="card" style="text-align:center;padding:30px 20px">'
-    +'<div style="font-size:15px;font-weight:600;margin-bottom:6px">Património protegido</div>'
-    +'<div class="meta" style="margin-bottom:20px">Introduz o código</div>'
-    +'<div class="pins" id="gPins" style="justify-content:center"></div>'
-    +'<div class="kp" id="gKp" style="max-width:260px;margin:0 auto"></div></div>';
-  E("gPins").innerHTML=[0,1,2,3].map(i=>'<i class="'+(i<gatePin.length?"on":"")+'"></i>').join("");
-  E("gKp").innerHTML=keypadHTML("data-g").replace('data-g=","','data-g="" disabled style="opacity:.25"');
-  E("gKp").querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{
-    const v=b.dataset.g; if(!v)return;
-    if(v==="del")gatePin=gatePin.slice(0,-1); else if(gatePin.length<4)gatePin+=v;
-    E("gPins").innerHTML=[0,1,2,3].map(i=>'<i class="'+(i<gatePin.length?"on":"")+'"></i>').join("");
-    if(gatePin.length===4){
-      if(gatePin===(S.patPin||S.pin)){ PAT_OK=true; E("patGate").innerHTML=""; E("patBody").classList.remove("hide"); rPatrim(); }
-      else { const k=E("gKp"); k.classList.add("shake"); setTimeout(()=>k.classList.remove("shake"),330); gatePin=""; pintaGatePin(); }
-    }
-  });
-}
-
 /* ---------- vista Património ---------- */
-let TICK=null, LONGO_ABERTO=false;
+let TICK=null, LONGO_ABERTO=false, TOTAL_ABERTO=false;
 function rPatrim(){
-  LONGO_ABERTO=false;
+  LONGO_ABERTO=false; TOTAL_ABERTO=false;
   registaSnap(); save();
-  if(mostraGate()) return;
   pintaOlho();
   E("patOlho").onclick=()=>{
-    const tudo=!(S.patOculto&&S.ocJuro&&S.ocPend&&S.ocTotJuro&&S.ocLongoJuro&&S.ocLongoTot);
-    S.patOculto=S.ocJuro=S.ocPend=S.ocTotJuro=S.ocLongoJuro=S.ocLongoTot=tudo;
+    const tudo=!(S.patOculto&&S.ocJuro&&S.ocPend&&S.ocTotJuro&&S.ocTotA&&S.ocTotL&&S.ocTotT&&S.ocTotJ);
+    S.patOculto=S.ocJuro=S.ocPend=S.ocTotJuro=S.ocTotA=S.ocTotL=S.ocTotT=S.ocTotJ=tudo;
     S.contas.forEach(c=>c.ocultarValor=tudo); save(); pintaOlho(); pintaPatrim(); };
   pintaPatrim();
   if(TICK) clearInterval(TICK);
@@ -1262,16 +1231,28 @@ function pintaPatrim(){
       +'<div class="meta">'+meta+'</div></div>'
       +'<span style="color:var(--tx3);margin-left:8px">›</span></button>';
   }).join("")
-    +'<div class="row2" style="border:none;padding-top:12px"><span class="k">Juro acumulado com o Aforro</span>'
-    +'<span class="v ac tnum'+(S.ocLongoJuro?" oculto":"")+'" data-oc="ocLongoJuro">'+fmt4(P.liquido+P.longoLiq)+'</span></div>'
-    +'<div class="row2" style="border:none;padding-top:0"><span class="k">Patrim\u00f3nio total</span>'
-    +'<span class="v tnum'+(S.ocLongoTot?" oculto":"")+'" data-oc="ocLongoTot">'+fmt(P.total)+'</span></div>'
     || '<div class="empty">Nada marcado como longo prazo.</div>';
   E("longoBody").querySelectorAll("[data-cc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.cc));
   E("cardLongo").classList.toggle("hide",!S.contas.some(c=>c.secundaria));
   E("longoBody").classList.toggle("hide",!LONGO_ABERTO);
   E("longoChev").style.transform=LONGO_ABERTO?"rotate(90deg)":"";
   E("longoHdr").onclick=()=>{ LONGO_ABERTO=!LONGO_ABERTO; pintaPatrim(); };
+
+  E("totBody").classList.toggle("hide",!TOTAL_ABERTO);
+  E("totChev").style.transform=TOTAL_ABERTO?"rotate(90deg)":"";
+  E("totHdr").onclick=()=>{ TOTAL_ABERTO=!TOTAL_ABERTO; pintaPatrim(); };
+  if(TOTAL_ABERTO){
+    const semLongo=P.longo<=0.004;
+    E("totBody").innerHTML=
+      '<div class="row2"><span class="k">A render agora</span>'
+      +'<span class="v tnum'+(S.ocTotA?" oculto":"")+'" data-oc="ocTotA">'+fmt(P.valor)+'</span></div>'
+      +(semLongo?'':'<div class="row2"><span class="k">Longo prazo</span>'
+      +'<span class="v tnum'+(S.ocTotL?" oculto":"")+'" data-oc="ocTotL">'+fmt(P.longo)+'</span></div>')
+      +'<div class="row2" style="border:none"><span class="k">Tudo somado</span>'
+      +'<span class="v tnum'+(S.ocTotT?" oculto":"")+'" data-oc="ocTotT" style="font-size:17px;font-weight:650">'+fmt(P.total)+'</span></div>'
+      +'<div class="row2" style="border:none;padding-top:0"><span class="k">Juro acumulado, tudo incluído</span>'
+      +'<span class="v ac tnum'+(S.ocTotJ?" oculto":"")+'" data-oc="ocTotJ">'+fmt4(P.liquido+P.longoLiq)+'</span></div>';
+  } else E("totBody").innerHTML="";
 
   const rende=S.contas.filter(c=>!c.secundaria&&(c.tipo==="aforro"||c.tipo==="remunerada")&&estado(c,agora).valor>0);
   E("rendeList").innerHTML=rende.length?rende.map(c=>{
@@ -1337,14 +1318,23 @@ function blocoTaxas(c,rot){
       +emVigor.toLocaleString("pt-PT")+' %</span></div>':'<div style="height:12px"></div>');
 }
 
+let ORD_CONTAS=false;
 function rHub(){
   const agora=new Date();
+  const mensal=(S.hubModo||"total")==="mensal";
   const lista=S.contas.filter(c=>c.tipo!=="aforro");
-  let total=0, alertas=0;
-  const html=lista.map(c=>{
-    const e=estado(c,agora); total+=e.valor||0;
-    let mal=0;
+  const N=lista.length;
+  let total=0, pedido=0, alertas=0;
+
+  E("hubModos").innerHTML=[["total","Saldos"],["mensal","Por m\u00eas"]]
+    .map(m=>'<button type="button" class="chip'+(((S.hubModo||"total")===m[0])?" on":"")+'" data-hm="'+m[0]+'">'+m[1]+'</button>').join("");
+
+  E("hubList").innerHTML=lista.map((c,ix)=>{
+    const e=estado(c,agora), saldo=e.valor||0;
+    const esp=esperadoDe(c);
+    total+=saldo; pedido+=esp;
     const aqui=S.potes.filter(p=>p.conta===c.id);
+    let mal=0;
 
     const linha=[];
     if(c.proposito) linha.push(esc(c.proposito));
@@ -1352,44 +1342,68 @@ function rHub(){
     else linha.push('<span style="color:var(--tx3)">Sem finalidade definida</span>');
 
     const notas=[];
-    const esp=esperadoDe(c);
     if(esp>0){
-      const d=(e.valor||0)-esp;
+      const d=saldo-esp;
       if(Math.abs(d)<0.01) notas.push('<span style="color:var(--ac)">Bate certo com os '+fmt(esp)+' esperados</span>');
-      else { mal++; notas.push('<span style="color:var(--'+(d<0?"bad":"ac")+')">'+(d>0?"+":"")+fmt(d)
-        +'</span> <span style="color:var(--tx3)">face aos '+fmt(esp)+' esperados</span>'); }
+      else { mal++; notas.push(mensal
+        ? '<span style="color:var(--tx3)">Tem agora </span>'+fmt(saldo)+'<span style="color:var(--'+(d<0?"bad":"ac")+')"> ('+(d>0?"+":"")+fmt(d)+')</span>'
+        : '<span style="color:var(--'+(d<0?"bad":"ac")+')">'+(d>0?"+":"")+fmt(d)+'</span> <span style="color:var(--tx3)">face aos '+fmt(esp)+' esperados</span>'); }
+    } else if(mensal){
+      notas.push('<span style="color:var(--tx3)">Sem valor mensal definido</span>');
     }
-    if(c.tipo==="ordem"||c.tipo==="investimento"){
-      const i=idadeSaldo(c);
-      const rot=c.tipo==="investimento"?"Valor":"Saldo";
-      if(i===null){ if((e.valor||0)!==0) notas.push('<span style="color:var(--tx3)">'+rot+' sem data</span>'); }
+    if(!mensal&&(c.tipo==="ordem"||c.tipo==="investimento")){
+      const i=idadeSaldo(c), rot=c.tipo==="investimento"?"Valor":"Saldo";
+      if(i===null){ if(saldo!==0) notas.push('<span style="color:var(--tx3)">'+rot+' sem data</span>'); }
       else if(i>30){ mal++; notas.push('<span style="color:var(--bad)">'+rot+' de h\u00e1 '+i+' dias</span>'); }
       else notas.push('<span style="color:var(--tx3)">'+rot+' de '+haQuantoTempo(i)+'</span>');
     }
-    if(aqui.length&&!aqui.some(p=>espelha(p))){
-      const resto=(e.valor||0)-aqui.reduce((a,p)=>a+saldoPote(p),0);
+    if(!mensal&&aqui.length&&!aqui.some(p=>espelha(p))){
+      const resto=saldo-aqui.reduce((a,p)=>a+saldoPote(p),0);
       if(Math.abs(resto)>=0.01) notas.push('<span style="color:var(--tx3)">N\u00e3o atribu\u00eddo a nenhum pote: </span>'+fmt(resto));
     }
-
     if(mal) alertas++;
-    return '<button type="button" class="pote" data-hc="'+c.id+'" style="width:100%;text-align:left;display:flex">'
+
+    const dir = ORD_CONTAS
+      ? '<span style="display:flex;gap:6px;margin-left:8px;align-self:center">'
+        +'<button type="button" data-cu="'+c.id+'" aria-label="Subir"'+(ix===0?' disabled':'')
+        +' style="width:32px;height:32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px;opacity:'+(ix===0?".3":"1")+'">\u2191</button>'
+        +'<button type="button" data-cd="'+c.id+'" aria-label="Descer"'+(ix===N-1?' disabled':'')
+        +' style="width:32px;height:32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px;opacity:'+(ix===N-1?".3":"1")+'">\u2193</button></span>'
+      : '<span style="color:var(--tx3);margin-left:8px;align-self:center">\u203A</span>';
+
+    return '<button type="button"'+(ORD_CONTAS?'':' data-hc="'+c.id+'"')+' class="pote" style="width:100%;text-align:left;display:flex">'
       +'<div class="info"><div class="nm"><span>'+esc(c.n)+'</span>'
-      +'<b class="tnum'+(c.ocultarValor?" oculto":"")+'">'+fmt(e.valor||0)+'</b></div>'
+      +'<b class="tnum'+(c.ocultarValor?" oculto":"")+'">'+fmt(mensal?esp:saldo)+(mensal&&esp>0?'<span style="font-weight:400;color:var(--tx3)">/m\u00eas</span>':'')+'</b></div>'
       +'<div class="meta">'+linha.join(" &middot; ")+'</div>'
       +(notas.length?'<div class="meta" style="margin-top:3px">'+notas.join(" &middot; ")+'</div>':'')
-      +'</div><span style="color:var(--tx3);margin-left:8px;align-self:center">\u203A</span></button>';
-  }).join("");
+      +'</div>'+dir+'</button>';
+  }).join("")||'<div class="empty">Ainda n\u00e3o tens contas.</div>';
 
-  E("hubList").innerHTML=html||'<div class="empty">Ainda n\u00e3o tens contas.</div>';
-  E("hubTotal").innerHTML='<span class="k">Total nas contas</span>'
-    +'<span class="v tnum'+(S.ocHub?" oculto":"")+'" id="hubSoma">'+fmt(total)+'</span>';
-  E("hubSoma").onclick=()=>{ S.ocHub=!S.ocHub; save(); rHub(); };
+  if(mensal){
+    E("hubTotal").innerHTML="";
+  } else {
+    E("hubTotal").innerHTML='<span class="k">Total nas contas</span>'
+      +'<span class="v tnum'+(S.ocHub?" oculto":"")+'" id="hubSoma">'+fmt(total)+'</span>';
+    E("hubSoma").onclick=()=>{ S.ocHub=!S.ocHub; save(); rHub(); };
+  }
   E("hubAvisos").textContent = alertas
-    ? alertas+(alertas===1?" conta precisa de aten\u00e7\u00e3o.":" contas precisam de aten\u00e7\u00e3o.")
-    : "";
+    ? alertas+(alertas===1?" conta precisa de aten\u00e7\u00e3o.":" contas precisam de aten\u00e7\u00e3o.") : "";
   E("hubAvisos").style.display = alertas?"":"none";
+
+  function mexe(id,d){
+    const i=S.contas.findIndex(x=>x.id===id), j=i+d;
+    if(i<0||j<0||j>=S.contas.length) return;
+    const t=S.contas[i]; S.contas[i]=S.contas[j]; S.contas[j]=t;
+    save(); rHub();
+  }
   E("hubList").querySelectorAll("[data-hc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.hc));
+  E("hubList").querySelectorAll("[data-cu]").forEach(el=>el.onclick=()=>mexe(el.dataset.cu,-1));
+  E("hubList").querySelectorAll("[data-cd]").forEach(el=>el.onclick=()=>mexe(el.dataset.cd,1));
+  E("hubModos").querySelectorAll("[data-hm]").forEach(el=>el.onclick=()=>{ S.hubModo=el.dataset.hm; save(); rHub(); });
   E("addConta").onclick=()=>sheetConta(null);
+  E("addConta").style.display=ORD_CONTAS?"none":"";
+  E("ordConta").textContent=ORD_CONTAS?"Concluir":"Reordenar";
+  E("ordConta").onclick=()=>{ ORD_CONTAS=!ORD_CONTAS; rHub(); };
 }
 
 function rReconc(){
@@ -2273,9 +2287,36 @@ function bindBackup(){
 
 /* ---------- bloqueio ---------- */
 let pinBuf="";
+function trancado(){
+  const m=S.patLock||"off";
+  if(m==="off") return false;
+  if(m==="pin"&&!S.pin) return false;
+  return true;
+}
 function showLock(){
+  S.patLockTemp=null;
   E("lock").classList.remove("hide");
   E("app").classList.add("hide"); E("nav").classList.add("hide");
+  E("lockSub").textContent="Autentica-te para abrir";
+  if((S.patLock||"off")==="faceid"&&!S.patLockTemp){
+    E("lockkp").innerHTML='<button class="btn" id="lkFace" style="grid-column:1/4">Desbloquear com Face ID</button>'
+      +(S.pin?'<button class="btn sec" id="lkAlt" style="grid-column:1/4">Usar o c\u00f3digo</button>':'')
+      +'<p class="note" id="lkErr" style="grid-column:1/4;margin-top:4px"></p>';
+    E("pins").innerHTML="";
+    const tenta=async()=>{
+      try{ await faceIdPedir(S.patCred); E("lock").classList.add("hide"); boot2(); }
+      catch(err){ E("lkErr").textContent="N\u00e3o foi poss\u00edvel autenticar. "
+        +(err&&err.name==="NotAllowedError"?"Cancelado ou sem permiss\u00e3o.":"Tenta abrir a app a partir do ecr\u00e3 principal."); }
+    };
+    E("lkFace").onclick=tenta;
+    if(E("lkAlt")) E("lkAlt").onclick=()=>{ mostraTeclado(); };
+    tenta();
+    return;
+  }
+  mostraTeclado();
+}
+function mostraTeclado(){
+  E("lockSub").textContent="Introduz o código";
   E("lockkp").innerHTML=keypadHTML("data-p").replace('data-p=","',"data-p=\"\" disabled style=\"opacity:.25\"");
   pinBuf=""; drawPins();
   E("lockkp").querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{
@@ -2302,6 +2343,7 @@ function boot2(){
   E("btnCfg").onclick=()=>{ if(view!=="config") VOLTA_PARA=view; go("config"); };
   E("irStats").onclick=()=>{ VOLTA_PARA="import"; go("mes"); };
 
+
   // tocar num campo numérico selecciona o que lá está, para o que escreveres substituir
   document.addEventListener("focusin",e=>{
     const t=e.target;
@@ -2314,7 +2356,14 @@ function boot2(){
   go("orc");
 }
 load();
-if(S.pin)showLock(); else boot2();
+let SAIU=0;
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="hidden"){ SAIU=Date.now(); return; }
+  if(!SAIU||!trancado()) return;
+  const q=S.lockQuando==null?0:+S.lockQuando;
+  if(q===0||Date.now()-SAIU>q*60000) showLock();
+});
+if(trancado()) showLock(); else boot2();
 
 if("serviceWorker" in navigator){
   window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
