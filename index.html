@@ -46,8 +46,8 @@ header .mes{font-size:10.5px;color:var(--tx3);font-variant-numeric:tabular-nums;
 .hero .lbl{font-size:12.5px;color:var(--tx3);margin-bottom:10px}
 .hero .big{font-size:52px;font-weight:700;letter-spacing:-.04em;line-height:1;color:var(--ac)}
 .hero .big.neg{color:var(--bad)}
-.oculto{filter:blur(8px);user-select:none;pointer-events:auto}
-input.oculto:focus{filter:none}
+.oculto{filter:blur(8px);filter:blur(max(8px,0.42em));user-select:none;pointer-events:auto;color:transparent;text-shadow:0 0 0.42em var(--tx)}
+input.oculto:focus{filter:none;color:var(--tx);text-shadow:none}
 .seta{width:18px;flex:0 0 18px;text-align:right;color:var(--tx3);align-self:center}
 .nota{display:inline-block}
 .chkTaxa{display:flex;gap:9px;align-items:flex-start;margin-top:9px;padding:9px 10px;
@@ -415,7 +415,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="14/11 21:55";
+const BUILD="14/11 21:57";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
