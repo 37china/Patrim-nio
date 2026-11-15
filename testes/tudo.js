@@ -338,8 +338,16 @@ const sec=t=>console.log("\n"+t);
   });
   await pg.reload(); await pg.waitForTimeout(450);
   const mg=await pg.evaluate(()=>({mig:S.mig10,hub:S.ocHub,dp:conta("old").periodoMeses,freq:conta("old").freq,base:conta("old").base,valor:estado(conta("old"),new Date()).valor,irsAf:conta("aforro").irs,irsT212:conta("t212").irs,irsTr:conta("tr").irs}));
-  ok("migração 10 correu e limpou o estado antigo", mg.mig===1&&mg.hub===undefined&&mg.dp===0&&mg.freq===undefined&&mg.base===360&&mg.valor===1000, mg);
-  ok("migração 10: aforro passa a descontar 28%, T212 e TR ficam como estavam", mg.irsAf===28&&mg.irsT212===null&&mg.irsTr===28, mg);
+  ok("migração 10 correu e limpou o estado antigo", mg.mig===2&&mg.hub===undefined&&mg.dp===0&&mg.freq===undefined&&mg.valor===1000, mg);
+  ok("migração 10: não presume nada nos dados que já existiam (aforro sem IRS, depósito a 365 dias, T212 e TR iguais)",
+     mg.irsAf===undefined&&mg.base===365&&mg.irsT212===null&&mg.irsTr===28, mg);
+  // quem apanhou a versão das 18:35, que presumiu 28% no aforro: volta ao que era
+  await pg.evaluate(()=>{ S.mig10=1; conta("aforro").irs=28; conta("aforro").retencao=true;
+    conta("aforro").subs=[{id:"c",valor:600,data:"2026-05-02"}]; conta("aforro").taxas=[{data:"2026-05-02",v:2.5}]; save(); });
+  const comIrs=await pg.evaluate(()=>estado(conta("aforro"),new Date("2026-11-15T12:00:00")).valor);
+  await pg.reload(); await pg.waitForTimeout(450);
+  const semIrs=await pg.evaluate(()=>({mig:S.mig10,irs:conta("aforro").irs,valor:estado(conta("aforro"),new Date("2026-11-15T12:00:00")).valor}));
+  ok("quem apanhou a versão das 18:35: o aforro volta a ser calculado como era", semIrs.mig===2&&semIrs.irs===null&&semIrs.valor>comIrs, {comIrs,semIrs});
   await pg.evaluate(()=>go("contas")); await pg.waitForTimeout(300);
   ok("depois de migrar, as Contas mostram tudo com o olho aberto", await mascaras(pg)===0, await mascaras(pg));
   await pg.close();
@@ -354,7 +362,7 @@ const sec=t=>console.log("\n"+t);
   await pg.tap("#wipe"); await pg.waitForTimeout(250); await pg.tap("#wYes"); await pg.waitForTimeout(400);
   let vz=await visivel();
   ok("apagar tudo: a app fica num separador que existe", vz.vistas.length===1&&vz.titulo==="Orçamento", vz);
-  ok("apagar tudo: estado de fábrica, já migrado", await pg.evaluate(()=>S.mig10===1&&S.contas.length===6&&conta("aforro").irs===28&&!S.contas.some(c=>c.id==="dp")));
+  ok("apagar tudo: estado de fábrica, já migrado", await pg.evaluate(()=>S.mig10===2&&S.contas.length===6&&conta("aforro").irs===28&&!S.contas.some(c=>c.id==="dp")));
   // importar a cópia de antes
   await pg.evaluate(()=>go("config")); await pg.waitForTimeout(250);
   await pg.setInputFiles("#impFile",{name:"mesada.json",mimeType:"application/json",buffer:Buffer.from(antesJson)});
@@ -373,7 +381,7 @@ const sec=t=>console.log("\n"+t);
   await pg.evaluate(()=>go("config")); await pg.waitForTimeout(250);
   await pg.setInputFiles("#impFile",{name:"antiga.json",mimeType:"application/json",buffer:Buffer.from(antiga)});
   await pg.waitForTimeout(350); await pg.tap("#iYes"); await pg.waitForTimeout(450);
-  ok("importar cópia antiga: migrada sem ser preciso reabrir a app", await pg.evaluate(()=>S.mig10===1&&S.ocHub===undefined&&conta("aforro").irs===28&&conta("dp").base===360&&conta("dp").periodoMeses===0&&conta("dp").freq===undefined));
+  ok("importar cópia antiga: migrada sem ser preciso reabrir a app", await pg.evaluate(()=>S.mig10===2&&S.ocHub===undefined&&conta("aforro").irs===undefined&&conta("dp").base===365&&conta("dp").periodoMeses===0&&conta("dp").freq===undefined));
   // ficheiro que não é uma cópia
   await pg.evaluate(()=>go("config")); await pg.waitForTimeout(200);
   await pg.setInputFiles("#impFile",{name:"lixo.json",mimeType:"application/json",buffer:Buffer.from('{"ola":1}')});

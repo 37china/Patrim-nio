@@ -438,7 +438,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="15/11 18:35";
+const BUILD="15/11 18:42";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -472,15 +472,23 @@ function load(){
   if(!Array.isArray(S.movs))S.movs=[];
   if(!Array.isArray(S.hist))S.hist=[];
   if(!S.icons)S.icons=DEF.icons;
+  /* mig10 = 2. A versão das 18:35 (mig10 = 1) presumiu duas coisas nos dados que já existiam:
+     28% de IRS no aforro e base 360 nos depósitos. O que já lá estava não se reinterpreta:
+     fica como era calculado, e quem decide é o dono, no formulário. */
+  if(S.mig10===1){
+    (Array.isArray(S.contas)?S.contas:[]).forEach(c=>{
+      if(c.tipo==="aforro"&&c.irs===28&&c.retencao===true){ c.irs=null; delete c.retencao; }
+    });
+    S.mig10=2;
+  }
   if(!S.mig10){
     delete S.ocHub; delete S.ocGraf; delete S.ocLongo; delete S.ocLongoJuro; delete S.ocLongoTot; delete S.ocTotA;
     (Array.isArray(S.contas)?S.contas:[]).forEach(c=>{
-      if(c.tipo==="prazo"){ c.periodoMeses=+c.periodoMeses||0; delete c.freq; if(c.base===undefined) c.base=360; }
+      // um depósito que já existia era calculado a 365 dias: continua assim até o dono dizer
+      if(c.tipo==="prazo"){ c.periodoMeses=+c.periodoMeses||0; delete c.freq; if(c.base===undefined) c.base=365; }
       if(c.tipo==="privado"&&c.secundaria===undefined) c.secundaria=true;
-      // os certificados capitalizam já sem os 28% de IRS: a taxa registada é a bruta
-      if(c.tipo==="aforro"&&c.irs===undefined){ c.irs=28; c.retencao=true; }
     });
-    S.mig10=1;
+    S.mig10=2;
   }
   if(!S.mig9){
     const t2=S.contas.find(c=>c.id==="t212"); if(t2){ t2.irs=null; t2.retencao=false; }
