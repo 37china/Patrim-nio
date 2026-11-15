@@ -91,7 +91,7 @@ const sec=t=>console.log("\n"+t);
 
   // A4 Património: olho = esconder tudo; se já está tudo, mostrar tudo
   await pg.evaluate(()=>go("patrim")); await pg.waitForTimeout(300);
-  await pg.tap("#longoHdr"); await pg.tap("#totHdr"); await pg.tap("#invHdr"); await pg.waitForTimeout(250);
+  await pg.tap("#longoHdr"); await pg.tap("#totHdr"); await pg.tap("#invHdr"); await pg.tap("#prazoHdr"); await pg.waitForTimeout(250);
   // nenhum saldo nem montante posto pode existir no HTML, nem em atributos
   // (procura-se o montante inteiro, "212,45": só "212" apanhava o nome "Trading 212")
   const proibidos=await pg.evaluate(()=>{ const o=new Set(); S.contas.forEach(c=>{ const e=estado(c,new Date());
@@ -246,8 +246,10 @@ const sec=t=>console.log("\n"+t);
   await pg.selectOption("#aPer","0"); await pg.waitForTimeout(250);
   await pg.tap("#aOk"); await pg.waitForTimeout(400);
   ok("prazo gravado", await pg.evaluate(()=>S.contas.some(c=>c.n==="DP Teste"&&c.tipo==="prazo"&&c.vence==="2027-06-01"&&c.subs[0].valor===3000&&c.taxas[0].v===3.5&&c.base===360&&c.irs===28&&c.retencao===true)));
-  const txt=await pg.$eval("#rendeList",e=>e.textContent);
-  ok("prazo aparece em 'A render agora' com o vencimento", /DP Teste/.test(txt)&&/Vence a 01\/06\/2027/.test(txt)&&/No vencimento recebes/.test(txt), txt.slice(0,400));
+  ok("depósito não aparece em À ordem", !/DP Teste/.test(await pg.$eval("#rendeList",e=>e.textContent)));
+  await pg.tap("#prazoHdr"); await pg.waitForTimeout(250);
+  const txt=await pg.$eval("#prazoBody",e=>e.textContent);
+  ok("prazo aparece na aba 'A prazo' com o vencimento", /DP Teste/.test(txt)&&/Vence a 01\/06\/2027/.test(txt)&&/No vencimento recebes/.test(txt), txt.slice(0,400));
   // tocar no nome abre o formulário do tipo certo
   const idDp=await pg.evaluate(()=>S.contas.find(c=>c.n==="DP Teste").id);
   await pg.tap('[data-ce="'+idDp+'"]'); await pg.waitForTimeout(300);
@@ -275,8 +277,8 @@ const sec=t=>console.log("\n"+t);
   sec("D. Depósito vencido");
   pg=await nova(); await semear(pg);
   await pg.evaluate(()=>{ const d=conta("dp"); d.subs=[{id:"s",valor:5000,data:"2026-01-01"}]; d.taxas=[{data:"2026-01-01",v:3}]; d.vence="2026-07-01"; save(); go("patrim"); });
-  await pg.waitForTimeout(350);
-  let t2=await pg.$eval("#rendeList",e=>e.textContent);
+  await pg.waitForTimeout(350); await pg.tap("#prazoHdr"); await pg.waitForTimeout(250);
+  let t2=await pg.$eval("#prazoBody",e=>e.textContent);
   ok("vencido: diz que venceu e mostra o valor final", /Venceu a 01\/07\/2026/.test(t2)&&/5\s?054,30/.test(t2), t2.slice(-420));
   const cgd0=await pg.evaluate(()=>conta("cgd").saldo);
   await pg.tap('[data-venc="dp"]'); await pg.waitForTimeout(300);
@@ -307,18 +309,18 @@ const sec=t=>console.log("\n"+t);
   sec("F. Totais, potes, cópia");
   pg=await nova(); await semear(pg);
   const P=await pg.evaluate(()=>{ const p=patrimonio(new Date()); const s=id=>estado(conta(id),new Date()).valor;
-    return {rende:p.rende,invest:p.invest,ordem:p.ordem,longo:p.longo,valor:p.valor,total:p.total,
-            esperadoRende:s("tr")+s("t212")+s("dp"), esperadoInv:s("trinv"), esperadoOrd:s("cgd")+s("revolut"), esperadoLongo:s("aforro")+s("pm")}; });
+    return {rende:p.rende,invest:p.invest,ordem:p.ordem,longo:p.longo,valor:p.valor,total:p.total,prazo:p.prazo,esperadoPrazo:s("dp"),
+            esperadoRende:s("tr")+s("t212"), esperadoInv:s("trinv"), esperadoOrd:s("cgd")+s("revolut"), esperadoLongo:s("aforro")+s("pm")}; });
   const eq=(a,b)=>Math.abs(a-b)<0.005;
-  ok("total: parcelas certas", eq(P.rende,P.esperadoRende)&&eq(P.invest,P.esperadoInv)&&eq(P.ordem,P.esperadoOrd)&&eq(P.longo,P.esperadoLongo), P);
-  ok("total: hero = tudo menos longo prazo; total = tudo", eq(P.valor,P.rende+P.invest+P.ordem)&&eq(P.total,P.valor+P.longo), P);
+  ok("total: parcelas certas", eq(P.rende,P.esperadoRende)&&eq(P.invest,P.esperadoInv)&&eq(P.ordem,P.esperadoOrd)&&eq(P.longo,P.esperadoLongo)&&eq(P.prazo,P.esperadoPrazo), P);
+  ok("total: hero = tudo menos longo prazo; total = tudo", eq(P.valor,P.rende+P.prazo+P.invest+P.ordem)&&eq(P.total,P.valor+P.longo), P);
   await pg.evaluate(()=>go("patrim")); await pg.waitForTimeout(300); await pg.tap("#totHdr"); await pg.waitForTimeout(250);
   const linhas=await pg.$$eval("#totBody .k",e=>e.map(x=>x.textContent));
-  ok("aba do total: as oito linhas pela ordem pedida", linhas.join("|").replace("Juro e retorno acumulado","Juro acumulado")==="Corrente|Juro acumulado|Investido|Retorno esperado|Longo prazo|Juro acumulado|Retorno total|Património total", linhas);
+  ok("aba do total: as oito linhas pela ordem pedida", linhas.join("|").replace("Juro e retorno acumulado","Juro acumulado")==="Corrente|Juro acumulado|A prazo|Juro acumulado|Investido|Retorno esperado|Longo prazo|Juro acumulado|Retorno total|Património total", linhas);
   const Q=await pg.evaluate(()=>{ const p=patrimonio(new Date()); const e=id=>estado(conta(id),new Date());
-    return {corrente:p.corrente,ret:p.retInv,lret:p.longoRet,rt:p.retTotal,liq:p.liquido,
+    return {corrente:p.corrente,ret:p.retInv,lret:p.longoRet,rt:p.retTotal,liq:p.liquido,pj:p.prazoJuro,espPj:e("dp").liquido,
       espRet:e("trinv").valor-e("trinv").investido, espL:e("aforro").liquido+(e("pm").valor-e("pm").investido)}; });
-  ok("total: corrente = à ordem + que rende; retornos certos", eq(Q.corrente,P.rende+P.ordem)&&eq(Q.ret,Q.espRet)&&eq(Q.lret,Q.espL)&&eq(Q.rt,Q.liq+Q.ret+Q.lret), Q);
+  ok("total: corrente = à ordem + que rende; retornos certos", eq(Q.corrente,P.rende+P.ordem)&&eq(Q.ret,Q.espRet)&&eq(Q.lret,Q.espL)&&eq(Q.pj,Q.espPj)&&eq(Q.rt,Q.liq+Q.pj+Q.ret+Q.lret), Q);
   // À ordem: as contas que não rendem também lá estão, e tocar abre o editor das Contas
   ok("À ordem lista a CGD e a Revolut", /Caixa|CGD/.test(await pg.$eval("#rendeList",e=>e.textContent)) && /Revolut/.test(await pg.$eval("#rendeList",e=>e.textContent)));
   await pg.tap('[data-ce="cgd"]'); await pg.waitForTimeout(300);
@@ -329,17 +331,17 @@ const sec=t=>console.log("\n"+t);
   ok("Longo prazo tem o juro no fundo", /acumulado/.test(await pg.$eval("#longoBody",e=>e.textContent)));
   // número grande: escolher as partes
   const big=()=>pg.$eval("#patTotal",e=>parseFloat(e.textContent.replace(/[^\d,]/g,"").replace(",",".")));
-  ok("número grande por omissão = corrente + investido", eq(await big(), Math.round((P.rende+P.ordem+P.invest)*100)/100), await big());
+  ok("número grande por omissão = corrente + a prazo + investido", eq(await big(), Math.round((P.rende+P.ordem+P.prazo+P.invest)*100)/100), await big());
   await pg.tap("#patLbl"); await pg.waitForTimeout(300);
-  await pg.uncheck('[data-pt="corrente"]'); await pg.uncheck('[data-pt="invest"]'); await pg.check('[data-pt="longo"]');
+  await pg.uncheck('[data-pt="corrente"]'); await pg.uncheck('[data-pt="prazo"]'); await pg.uncheck('[data-pt="invest"]'); await pg.check('[data-pt="longo"]');
   await pg.tap("#ptOk"); await pg.waitForTimeout(300);
   ok("só longo prazo", eq(await big(), Math.round(P.longo*100)/100) && (await pg.$eval("#patLbl",e=>e.textContent)).startsWith("Longo prazo"), await big());
   await pg.tap("#patLbl"); await pg.waitForTimeout(300);
-  await pg.check('[data-pt="corrente"]'); await pg.check('[data-pt="invest"]'); await pg.tap("#ptOk"); await pg.waitForTimeout(300);
-  ok("as três = património total", eq(await big(), Math.round(P.total*100)/100) && (await pg.$eval("#patLbl",e=>e.textContent)).startsWith("Património total"), await big());
+  await pg.check('[data-pt="corrente"]'); await pg.check('[data-pt="prazo"]'); await pg.check('[data-pt="invest"]'); await pg.tap("#ptOk"); await pg.waitForTimeout(300);
+  ok("as quatro = património total", eq(await big(), Math.round(P.total*100)/100) && (await pg.$eval("#patLbl",e=>e.textContent)).startsWith("Património total"), await big());
   await pg.tap("#patLbl"); await pg.waitForTimeout(300);
   ["corrente","invest","longo"].forEach(()=>{}); 
-  for(const k of ["corrente","invest","longo"]) await pg.uncheck('[data-pt="'+k+'"]');
+  for(const k of ["corrente","prazo","invest","longo"]) await pg.uncheck('[data-pt="'+k+'"]');
   await pg.tap("#ptOk"); await pg.waitForTimeout(250);
   ok("nenhuma escolhida: não grava", !!(await pg.$("#ptOk"))); await pg.evaluate(()=>closeSheet());
   // pote que espelha um depósito a prazo: o ± explica em vez de fingir
@@ -378,6 +380,11 @@ const sec=t=>console.log("\n"+t);
   ok("quem apanhou a versão das 18:35: o aforro volta a ser calculado como era", semIrs.mig===2&&semIrs.irs===null&&semIrs.valor>comIrs, {comIrs,semIrs});
   await pg.evaluate(()=>go("contas")); await pg.waitForTimeout(300);
   ok("depois de migrar, as Contas mostram tudo com o olho aberto", await mascaras(pg)===0, await mascaras(pg));
+  await pg.close();
+
+  pg=await nova();
+  await pg.evaluate(()=>{ S.heroPartes=["corrente","invest"]; delete S.mig11; save(); }); await pg.reload(); await pg.waitForTimeout(400);
+  ok("migração 11: quem tinha Corrente + Investido passa a ter também A prazo", await pg.evaluate(()=>S.heroPartes.join()==="corrente,invest,prazo"&&S.mig11===1));
   await pg.close();
 
   /* ================= H. CÓPIA DE SEGURANÇA ================= */

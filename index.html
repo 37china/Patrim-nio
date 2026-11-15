@@ -324,6 +324,12 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
       <h3>À ordem</h3>
       <div id="rendeList"></div>
     </div>
+    <div class="card hide" id="cardPrazo" style="padding-top:14px;padding-bottom:14px">
+      <button type="button" id="prazoHdr" style="width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left">
+        <span style="font-size:14.5px;font-weight:600">A prazo</span>
+        <span id="prazoChev" style="color:var(--tx3);font-size:17px">›</span></button>
+      <div id="prazoBody" class="hide" style="margin-top:12px"></div>
+    </div>
     <div class="card hide" id="cardInv" style="padding-top:14px;padding-bottom:14px">
       <button type="button" id="invHdr" style="width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left">
         <span style="font-size:14.5px;font-weight:600">Investido<span id="invPend" class="meta" style="margin-left:7px;color:var(--warn,#f5b74a)"></span></span>
@@ -440,7 +446,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
   <button data-v="contas">
     <svg viewBox="0 0 24 24"><path d="M3 9.5 12 4l9 5.5"/><path d="M4.5 9.5V18"/><path d="M19.5 9.5V18"/><path d="M8.5 11v7"/><path d="M12 11v7"/><path d="M15.5 11v7"/><path d="M2.5 20.5h19"/></svg>Contas</button>
   <button data-v="patrim">
-    <svg viewBox="0 0 24 24"><path d="M12 20.5v-7.5"/><path d="M12 13c0-3 2.2-5.5 5.5-5.9.4 3.3-1.8 6.2-5.5 5.9Z"/><path d="M12 15.5c-.3-2.8-2.3-4.9-5.2-5.2-.3 2.9 1.8 5 5.2 5.2Z"/><path d="M7 20.5h10"/></svg>Património</button>
+    <svg viewBox="0 0 24 24"><path d="M12 21v-6.5"/><path d="M12 17.2l-2.6-2.2"/><path d="M12 15.6l2.4-1.9"/><path d="M8.3 14.6a4.3 4.3 0 0 1-.9-8.2A4.7 4.7 0 0 1 16.6 6a4.3 4.3 0 0 1-.9 8.6Z"/><path d="M8 21h8"/></svg>Património</button>
   <button data-v="import">
     <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>Importar</button>
 </div></nav>
@@ -450,7 +456,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="15/11 23:03";
+const BUILD="15/11 23:13";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -492,6 +498,10 @@ function load(){
       if(c.tipo==="aforro"&&c.irs===28&&c.retencao===true){ c.irs=null; delete c.retencao; }
     });
     S.mig10=2;
+  }
+  if(!S.mig11){
+    if(Array.isArray(S.heroPartes)&&S.heroPartes.includes("corrente")&&!S.heroPartes.includes("prazo")) S.heroPartes.push("prazo");
+    S.mig11=1;
   }
   if(!S.mig10){
     delete S.ocHub; delete S.ocGraf; delete S.ocLongo; delete S.ocLongoJuro; delete S.ocLongoTot; delete S.ocTotA;
@@ -823,6 +833,7 @@ function ligaDeslize(){
   document.addEventListener("touchcancel",solta,{capture:true});
 }
 function go(v){
+  if(v==="patrim"&&view!=="patrim"){ LONGO_ABERTO=false; TOTAL_ABERTO=false; INV_ABERTO=false; PRAZO_ABERTO=false; }
   view=v;
   VISTAS.forEach(x=>E("v-"+x).classList.toggle("hide",x!==v));
   let activa=v;
@@ -1417,7 +1428,7 @@ function estadoAforro(c,agora){
 
 function patrimonio(agora){
   agora=agora||new Date();
-  const P={rende:0,invest:0,ordem:0,longo:0,liquido:0,pend:0,bruto:0,longoLiq:0,meu:0,reserva:0,retInv:0,longoRet:0};
+  const P={rende:0,invest:0,ordem:0,longo:0,liquido:0,pend:0,bruto:0,longoLiq:0,meu:0,reserva:0,retInv:0,longoRet:0,prazo:0,prazoJuro:0};
   const ehInv=c=>c.tipo==="investimento"||c.tipo==="privado";
   const ganhoDe=e=>e.ganho!=null?e.ganho:(e.valor||0)-(e.investido||0);
   S.contas.forEach(c=>{
@@ -1426,13 +1437,14 @@ function patrimonio(agora){
       P.longoRet+=ehInv(c)?ganhoDe(e):(e.liquido||0); return; }
     if(c.tipo==="ordem") P.ordem+=e.valor||0;
     else if(ehInv(c)){ P.invest+=e.valor||0; P.retInv+=ganhoDe(e); }
+    else if(c.tipo==="prazo"||c.tipo==="aforro"){ P.prazo+=e.valor||0; P.prazoJuro+=e.liquido||0; }
     else { P.rende+=e.valor||0; P.liquido+=e.liquido||0; P.pend+=e.pendLiq||0; P.bruto+=e.bruto||0; }
     P.meu+=e.meu||0; P.reserva+=e.reserva||0;
   });
-  P.corrente=P.rende+P.ordem;            // o que está nos bancos, a render ou não
-  P.valor=P.corrente+P.invest;           // tudo menos o longo prazo
+  P.corrente=P.rende+P.ordem;            // dinheiro à ordem, a render ou não
+  P.valor=P.corrente+P.prazo+P.invest;   // tudo menos o longo prazo
   P.total=P.valor+P.longo;
-  P.retTotal=P.liquido+P.retInv+P.longoRet;
+  P.retTotal=P.liquido+P.prazoJuro+P.retInv+P.longoRet;
   return P;
 }
 
@@ -1479,16 +1491,16 @@ async function faceIdPedir(idB64){
    pintaPatrim() desenha tudo; o tique de cada segundo só reescreve os números que
    mexem. A lista não é refeita a cada segundo: um elemento substituído debaixo
    do dedo perdia o toque. Só se redesenha quando a estrutura muda. */
-let TICK=null, LONGO_ABERTO=false, TOTAL_ABERTO=false, INV_ABERTO=false, PAT_ASS="", TK={};
-const PAT_CHAVES=["patOculto","ocJuro","ocPend","ocHeroRet","ocTotJuro","ocInvRet","ocLongoJ",
-  "ocTotC","ocTotJC","ocTotI","ocTotRI","ocTotL","ocTotJL","ocTotRT","ocTotT"];
+let TICK=null, LONGO_ABERTO=false, TOTAL_ABERTO=false, INV_ABERTO=false, PRAZO_ABERTO=false, PAT_ASS="", TK={};
+const PAT_CHAVES=["patOculto","ocJuro","ocPend","ocHeroRet","ocTotJuro","ocPrazoJ","ocInvRet","ocLongoJ",
+  "ocTotC","ocTotJC","ocTotP","ocTotJP","ocTotI","ocTotRI","ocTotL","ocTotJL","ocTotRT","ocTotT"];
 // o que soma o número grande: qualquer combinação das três partes
-const PARTES={corrente:"Corrente",invest:"Investido",longo:"Longo prazo"};
+const PARTES={corrente:"Corrente",prazo:"A prazo",invest:"Investido",longo:"Longo prazo"};
 function heroPartes(){
   const v=Array.isArray(S.heroPartes)?S.heroPartes.filter(k=>PARTES[k]):[];
-  return v.length?v:["corrente","invest"];
+  return v.length?v:["corrente","prazo","invest"];
 }
-function heroValor(P,partes){ return partes.reduce((t,k)=>t+(k==="corrente"?P.corrente:k==="invest"?P.invest:P.longo),0); }
+function heroValor(P,partes){ return partes.reduce((t,k)=>t+(k==="corrente"?P.corrente:k==="prazo"?P.prazo:k==="invest"?P.invest:P.longo),0); }
 function patTudoOculto(){
   return PAT_CHAVES.every(k=>!!S[k]) && S.contas.every(c=>c.ocultarValor&&c.ocultarJuro);
 }
@@ -1498,7 +1510,6 @@ function patAssinatura(agora){
   }).join("|")+"#"+pendentesPlano().length;
 }
 function rPatrim(){
-  LONGO_ABERTO=false; TOTAL_ABERTO=false; INV_ABERTO=false;
   registaSnap(); save();
   pintaPatrim();
   if(TICK) clearInterval(TICK);
@@ -1579,6 +1590,7 @@ function ligaPatrim(){
   E("longoHdr").onclick=()=>{ LONGO_ABERTO=!LONGO_ABERTO; pintaPatrim(); };
   E("totHdr").onclick=()=>{ TOTAL_ABERTO=!TOTAL_ABERTO; pintaPatrim(); };
   E("invHdr").onclick=()=>{ INV_ABERTO=!INV_ABERTO; pintaPatrim(); };
+  E("prazoHdr").onclick=()=>{ PRAZO_ABERTO=!PRAZO_ABERTO; pintaPatrim(); };
   E("patLbl").onclick=sheetPartes;
   E("przBtn").onclick=sheetPrecos;
   E("addPat").onclick=sheetAdicionar;
@@ -1623,27 +1635,29 @@ function pintaPatrim(){
 
   /* --- cabeçalho --- */
   E("patOlho").innerHTML = patTudoOculto() ? OLHO_OFF : OLHO_ON;
-  const partes=heroPartes(), tudo=partes.length===3;
+  const partes=heroPartes(), tudo=partes.length===4;
   E("patLbl").firstChild.textContent=tudo?"Património total":partes.length===1?PARTES[partes[0]]:"Património agora";
-  E("patPartes").textContent=partes.length===2?partes.map(k=>PARTES[k]).join(" + "):"";
-  E("patPartes").style.display=partes.length===2?"":"none";
+  const varias=partes.length>1&&!tudo;
+  E("patPartes").textContent=varias?partes.map(k=>PARTES[k]).join(" + "):"";
+  E("patPartes").style.display=varias?"":"none";
   const hv=E("patTotal");
   hv.innerHTML=vis(S.patOculto,(Math.round(heroValor(P,partes)*100)/100).toLocaleString("pt-PT",{minimumFractionDigits:2,maximumFractionDigits:2})+"<small>€</small>");
   hv.onclick=()=>{ S.patOculto=!S.patOculto; save(); pintaPatrim(); };
   // por baixo, o que essas partes renderam
-  const comC=partes.includes("corrente"), comI=partes.includes("invest"), comL=partes.includes("longo");
-  const juroHero=a=>{ const q=patrimonio(a); return (comC?q.liquido:0)+(comL?q.longoRet:0); };
+  const comC=partes.includes("corrente"), comP=partes.includes("prazo"), comI=partes.includes("invest"), comL=partes.includes("longo");
+  const juroHero=a=>{ const q=patrimonio(a); return (comC?q.liquido:0)+(comP?q.prazoJuro:0)+(comL?q.longoRet:0); };
   E("patSub").innerHTML=
-    (comC||comL?'<div>'+(comL&&S.contas.some(c=>c.secundaria&&(c.tipo==="investimento"||c.tipo==="privado"))?"Juro e retorno acumulado":"Juro acumulado")
+    (comC||comP||comL?'<div>'+(comL&&S.contas.some(c=>c.secundaria&&(c.tipo==="investimento"||c.tipo==="privado"))?"Juro e retorno acumulado":"Juro acumulado")
       +' <b class="tnum" data-oc="ocJuro">'+tk("hj",S.ocJuro,a=>fmt4(juroHero(a)))+'</b></div>':'')
     +(comI&&P.invest>0.004?'<div>Retorno esperado <b class="tnum" data-oc="ocHeroRet">'
       +vis(S.ocHeroRet,(P.retInv>=0?"+":"−")+fmt(Math.abs(P.retInv)))+'</b></div>':'')
     +(comC&&P.pend>0.004?'<div>Ainda por entrar na conta <b class="tnum" data-oc="ocPend">'
       +tk("hp",S.ocPend,a=>fmt(patrimonio(a).pend))+'</b></div>':'');
 
-  /* --- a render agora: contas com juro, depósitos a prazo, aforro em destaque --- */
-  const rende=S.contas.filter(c=>!c.secundaria&&(c.tipo==="remunerada"||c.tipo==="prazo"||c.tipo==="aforro"||c.tipo==="ordem"));
-  E("rendeList").innerHTML=rende.length?rende.map(c=>{
+  /* --- à ordem: contas bancárias; a prazo: depósitos e aforro. A mesma linha serve as duas --- */
+  const rende=S.contas.filter(c=>!c.secundaria&&(c.tipo==="remunerada"||c.tipo==="ordem"));
+  const aPrazo=S.contas.filter(c=>!c.secundaria&&(c.tipo==="prazo"||c.tipo==="aforro"));
+  const linhaRende=c=>{
     const e=estado(c,agora);
     let h='<div style="padding:14px 0;border-bottom:1px solid var(--line)">'+cabeca(c,e);
     if(c.tipo==="ordem"){
@@ -1678,10 +1692,17 @@ function pintaPatrim(){
       +'<span>Taxa de '+fmtData(ultimaTaxa(c))+'. Confirmei que continua esta.</span></label>';
     h+='<div class="meta" style="margin-top:7px">'+taxaTexto(c)+'</div>';
     return h+'</div>';
-  }).join("")
+  };
+  E("rendeList").innerHTML=rende.length?rende.map(linhaRende).join("")
     +'<div class="row2" style="border:none;padding-top:12px"><span class="k">Juro total acumulado</span>'
     +'<span class="v ac tnum" data-oc="ocTotJuro">'+tk("tj",S.ocTotJuro,a=>fmt4(patrimonio(a).liquido))+'</span></div>'
-  :'<div class="empty">Ainda não tens nada aqui. Usa o botão "Adicionar ao património", no fundo desta página.</div>';
+  :'<div class="empty">Ainda não tens contas. Criam-se no separador Contas.</div>';
+  E("cardPrazo").classList.toggle("hide",!aPrazo.length);
+  E("prazoBody").classList.toggle("hide",!PRAZO_ABERTO);
+  E("prazoChev").style.transform=PRAZO_ABERTO?"rotate(90deg)":"";
+  E("prazoBody").innerHTML=!PRAZO_ABERTO?"":aPrazo.map(linhaRende).join("")
+    +'<div class="row2" style="border:none;padding-top:12px"><span class="k">Juro total acumulado</span>'
+    +'<span class="v ac tnum" data-oc="ocPrazoJ">'+tk("tpj",S.ocPrazoJ,a=>fmt4(patrimonio(a).prazoJuro))+'</span></div>';
 
   /* --- compras do plano por preencher --- */
   const pend=pendentesPlano();
@@ -1780,6 +1801,8 @@ function pintaPatrim(){
   E("totBody").innerHTML=!TOTAL_ABERTO?"":
     parcela("Corrente",'ocTotC',P.corrente)
     +ret("Juro acumulado",'ocTotJC',tk("tjc",S.ocTotJC,a=>fmt4(patrimonio(a).liquido)))
+    +parcela("A prazo",'ocTotP',P.prazo)
+    +ret("Juro acumulado",'ocTotJP',tk("tjp",S.ocTotJP,a=>fmt4(patrimonio(a).prazoJuro)))
     +parcela("Investido",'ocTotI',P.invest)
     +ret("Retorno esperado",'ocTotRI',vis(S.ocTotRI,sinal(P.retInv)))
     +parcela("Longo prazo",'ocTotL',P.longo)
