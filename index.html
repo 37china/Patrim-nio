@@ -46,8 +46,10 @@ header .mes{font-size:10.5px;color:var(--tx3);font-variant-numeric:tabular-nums;
 .hero .lbl{font-size:12.5px;color:var(--tx3);margin-bottom:10px}
 .hero .big{font-size:52px;font-weight:700;letter-spacing:-.04em;line-height:1;color:var(--ac)}
 .hero .big.neg{color:var(--bad)}
-.oculto{filter:blur(8px);filter:blur(max(8px,0.42em));user-select:none;pointer-events:auto;color:transparent;text-shadow:0 0 0.42em var(--tx)}
-input.oculto:focus{filter:none;color:var(--tx);text-shadow:none}
+.oculto{user-select:none;color:var(--tx3);letter-spacing:0.08em}
+input.oculto{color:transparent;text-shadow:0 0 0.42em var(--tx)}
+input.oculto:focus{color:var(--tx);text-shadow:none}
+
 .seta{width:18px;flex:0 0 18px;text-align:right;color:var(--tx3);align-self:center}
 .nota{display:inline-block}
 .chkTaxa{display:flex;gap:9px;align-items:flex-start;margin-top:9px;padding:9px 10px;
@@ -307,7 +309,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
     <div class="card">
       <h3>A render agora</h3>
       <div id="rendeList"></div>
-      <button class="btn sec" id="addRende" style="margin-top:12px">+ Adicionar conta</button>
+      <button class="btn sec" id="addRende" style="margin-top:12px">+ Adicionar ao património</button>
     </div>
     <div class="card hide" id="cardInv">
       <h3>Investido</h3>
@@ -424,7 +426,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="14/11 22:27";
+const BUILD="15/11 17:45";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -718,6 +720,14 @@ function go(v){
 }
 
 /* ---------- render ---------- */
+function tapaOcultos(){
+  document.querySelectorAll(".oculto").forEach(el=>{
+    if(el.tagName==="INPUT") return;          // nesses escreve-se; fica o desfoque
+    if(el.dataset.tapado==="1") return;
+    el.dataset.tapado="1";
+    el.textContent="\u2022\u2022\u2022\u2022\u2022";
+  });
+}
 function render(){
   if(view==="contas")rHub();
   if(view==="potes")rPotes();
@@ -726,6 +736,7 @@ function render(){
   if(view==="patrim")rPatrim();
   if(view==="import"){rImport();rCats();}
   if(view==="config")rConfig();
+  tapaOcultos();
 }
 
 function movHTML(m){
@@ -797,6 +808,7 @@ function rPotes(){
   E("addPote").style.display=ORD_POTES?"none":"";
   E("ordPote").textContent=ORD_POTES?"Concluir":"Reordenar";
   E("ordPote").onclick=()=>{ ORD_POTES=!ORD_POTES; rPotes(); };
+  tapaOcultos();
 }
 
 function rRollover(r,alvo){
@@ -1017,6 +1029,7 @@ function sheetPote(id){
 function rConfigLight(){
   const to=E("totOrc"); if(to)to.textContent=fmt(totalFixas());
   const tf=E("totFix"); if(tf)tf.textContent=fmt(somaFixas());
+  setTimeout(tapaOcultos,0);
   const tv=E("totVar"); if(tv)tv.textContent=fmt(somaVars());
   const nao=sobras()-alocado();
   const el=E("naoAloc");
@@ -1024,7 +1037,7 @@ function rConfigLight(){
 }
 
 /* ================= PATRIMÓNIO E JUROS ================= */
-const TIPOS={ordem:"À ordem",remunerada:"À ordem remunerada",aforro:"Certificados de Aforro",investimento:"Carteira de investimento",privado:"Private market"};
+const TIPOS={ordem:"À ordem",remunerada:"À ordem remunerada",prazo:"Depósito a prazo",aforro:"Certificados de Aforro",investimento:"Carteira de investimento",privado:"Private market"};
 const CATS={etf:"ETF",acao:"Ação",cripto:"Cripto"};
 const conta=id=>S.contas.find(c=>c.id===id);
 const IRS_AFORRO=0;   // a app não modela imposto
@@ -1066,7 +1079,7 @@ function dataConta(c){
 function estado(c,agora){
   agora=agora||new Date();
   if(c.tipo==="aforro") return estadoAforro(c,agora);
-  if(c.tipo==="remunerada") return estadoRemunerada(c,agora);
+  if(c.tipo==="remunerada"||c.tipo==="prazo") return estadoRemunerada(c,agora);
   const base=+c.saldo||0;
   const o={tipo:c.tipo,capital:base,bruto:0,reserva:0,liquido:0,
            pendBruto:0,pendLiq:0,proxima:null,dias:0,valor:base,meu:base,impostoPago:0};
@@ -1129,7 +1142,14 @@ function estadoRemunerada(c,agora){
     marcos.push({t:d,tipo:"taxa",v:+x.v});
   });
   let r=taxaEm(c,inicio)/100;
-  if(c.freq==="diaria"){
+  if(c.freq==="vencimento"){
+    const v=c.vence?new Date(c.vence+"T00:00:00"):null;
+    if(v&&!isNaN(v)){
+      if(v<=agora) marcos.push({t:new Date(v),tipo:"pag"});
+      else o.proxima=v;
+    }
+    o.vence=v;
+  } else if(c.freq==="diaria"){
     const hm=String(c.horaJuro||"00:00").split(":");
     const hh=Math.min(23,Math.max(0,+hm[0]||0)), mi=Math.min(59,Math.max(0,+hm[1]||0));
     // o saldo de partida já inclui o crédito desse dia: o primeiro pagamento é no dia seguinte
@@ -1166,7 +1186,8 @@ function estadoRemunerada(c,agora){
     } else if(m.tipo==="taxa"){ r=m.v/100; }
     else { cap+=m.v; posto+=m.v; }
   });
-  correr(agora);
+  // um depósito a prazo pára de render quando vence
+  correr(c.freq==="vencimento"&&o.vence&&o.vence<agora ? o.vence : agora);
 
   o.investido=posto; o.capital=cap; o.impostoPago=retido;
   o.pendBruto=acum; o.pendLiq=acum*(1-tx);
@@ -1381,7 +1402,7 @@ function pintaPatrim(){
       +'</div></div>';
   }).join("")
     || '<div class="empty">Nada marcado como longo prazo.</div>';
-  E("addRende").onclick=()=>sheetConta(null);
+  E("addRende").onclick=sheetAdicionar;
 
   const cart=S.contas.filter(c=>c.tipo==="investimento"&&!c.secundaria);
   E("cardInv").classList.toggle("hide",!cart.length);
@@ -1414,8 +1435,9 @@ function pintaPatrim(){
         +'</div>';
     }).join("");
     E("przBtn").onclick=sheetPrecos;
-    E("addInv").onclick=()=>sheetConta(null);
+    E("addInv").onclick=()=>sheetConta(null,"investimento");
   }
+  tapaOcultos();
   E("longoBody").querySelectorAll("[data-cc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.cc));
   E("cardLongo").classList.toggle("hide",!S.contas.some(c=>c.secundaria));
   E("longoBody").classList.toggle("hide",!LONGO_ABERTO);
@@ -1598,6 +1620,7 @@ function rHub(){
   E("addConta").style.display=ORD_CONTAS?"none":"";
   E("ordConta").textContent=ORD_CONTAS?"Concluir":"Reordenar";
   E("ordConta").onclick=()=>{ ORD_CONTAS=!ORD_CONTAS; rHub(); };
+  tapaOcultos();
 }
 
 function rReconc(){
@@ -1617,13 +1640,16 @@ function rReconc(){
   +(semConta>0?'<div class="row2"><span class="k">Potes sem conta definida</span><span class="v tnum bad">'+fmt(semConta)+'</span></div>':"");
 }
 
-function sheetConta(id){
+function sheetConta(id,tipoNovo){
   const nova=!id;
-  const c=nova?{id:"c"+Date.now(),n:"",tipo:"remunerada",saldo:0,data:new Date().toISOString().slice(0,10),tanb:0,freq:"mensal",retencao:false,serie:"F",premio:0,valor:0,investido:0}
+  const c=nova?{id:"c"+Date.now(),n:"",tipo:tipoNovo||"remunerada",saldo:0,data:new Date().toISOString().slice(0,10),tanb:0,freq:"mensal",retencao:false,serie:"F",premio:0,valor:0,investido:0}
              :Object.assign({},conta(id));
+  if(nova&&c.tipo==="prazo"){ c.freq="vencimento"; c.subs=[]; }
+  if(nova&&c.tipo==="privado") c.secundaria=true;
+  if(nova&&c.tipo==="investimento") c.posicoes=[];
   function form(){
     const t=c.tipo, hoje=new Date().toISOString().slice(0,10);
-    const juros = (t==="aforro"||t==="remunerada");
+    const juros = (t==="aforro"||t==="remunerada"||t==="prazo");
     if(juros){
       c.subs=c.subs||[]; c.taxas=c.taxas||[];
       if(!c.subs.length)  c.subs=[{id:"s"+Date.now(),valor:0,data:hoje}];
@@ -1636,6 +1662,7 @@ function sheetConta(id){
       +'<label class="f"><span>Paga juros?</span><select id="cT">'
       +'<option value="ordem"'+(t==="ordem"?" selected":"")+'>N\u00e3o \u2014 conta normal</option>'
       +'<option value="remunerada"'+(t==="remunerada"?" selected":"")+'>Sim \u2014 juro \u00e0 ordem</option>'
+      +'<option value="prazo"'+(t==="prazo"?" selected":"")+'>Sim \u2014 dep\u00f3sito a prazo</option>'
       +'<option value="aforro"'+(t==="aforro"?" selected":"")+'>Sim \u2014 Certificados de Aforro</option>'
       +'<option value="investimento"'+(t==="investimento"?" selected":"")+'>N\u00e3o \u2014 carteira de investimento</option>'
       +'<option value="privado"'+(t==="privado"?" selected":"")+'>N\u00e3o \u2014 private market</option>'
@@ -1721,6 +1748,15 @@ function sheetConta(id){
             +'<input type="time" id="cHJ" value="'+(c.horaJuro||"00:00")+'"></label>')
 ;
     }
+    if(t==="prazo"){
+      const e0=estado(c,new Date());
+      const dv=c.vence?idadeData(c.vence):null;
+      h+=SEC("Prazo")
+        +'<label class="f"><span>Vence em</span><input type="date" id="cVence" value="'+(c.vence||"")+'"></label>'
+        +'<p class="meta" style="margin:-6px 0 13px">O juro só entra na conta nesta data. Até lá aparece em "Ainda por entrar".'
+        +(c.vence?(dv!==null&&dv>=0?' <span style="color:var(--ac)">Já venceu.</span>'
+                                   :' Faltam '+Math.abs(dv)+' dias.'):'')+'</p>';
+    }
     if(t==="aforro"){
       h+=SEC("Detalhes da série")
         +'<label class="f"><span>Série</span><select id="cSerie">'
@@ -1789,6 +1825,8 @@ function sheetConta(id){
     E("cT").onchange=e=>{
       colher(); c.tipo=e.target.value;
       if(c.tipo==="privado"&&c.secundaria===undefined) c.secundaria=true;
+      if(c.tipo==="prazo") c.freq="vencimento";
+      else if(c.freq==="vencimento") c.freq="mensal";
       if(c.tipo==="aforro"){
         if(!c.n.trim()) c.n="Certificados de Aforro";
         c.serie=c.serie||"F"; c.premio=+c.premio||0;
@@ -1895,6 +1933,7 @@ function sheetConta(id){
     if(g("cP")) c.premio=+g("cP").value||0;
     if(g("cIrs")){ const v=+g("cIrs").value; c.irs=(v>0&&v<=100)?v:null; }
     if(g("cEsp")){ const v=+g("cEsp").value; c.esperado=v>0?v:null; }
+    if(g("cVence")) c.vence=g("cVence").value||null;
     if(E("cSubs")&&Array.isArray(c.subs)){
       E("cSubs").querySelectorAll("[data-sv]").forEach(el=>{c.subs[+el.dataset.sv].valor=+el.value||0;});
       E("cSubs").querySelectorAll("[data-sd]").forEach(el=>{c.subs[+el.dataset.sd].data=el.value||null;});
@@ -2077,6 +2116,26 @@ function movimentaConta(c,v){
   } else {
     c.saldo=Math.round(((+c.saldo||0)+v)*100)/100;
   }
+}
+
+const ADICIONAR=[
+  {t:"remunerada",n:"Conta que paga juros",d:"À ordem, com juro creditado todos os dias ou todos os meses"},
+  {t:"prazo",n:"Depósito a prazo",d:"Capital preso até uma data, com o juro pago no vencimento"},
+  {t:"aforro",n:"Certificados de Aforro",d:"Subscrições com capitalização trimestral"},
+  {t:"investimento",n:"Carteira de investimento",d:"ETF, ações ou cripto, por unidades e preço"},
+  {t:"privado",n:"Private market",d:"Sem cotação: avaliação e data"},
+  {t:"ordem",n:"Conta que não rende",d:"Só guarda o saldo que lá viste e quando"}
+];
+function sheetAdicionar(){
+  openSheet('<h2>Adicionar ao património</h2>'
+    +'<p class="note" style="text-align:center">O que é que vais registar?</p>'
+    +ADICIONAR.map(a=>'<button type="button" class="btn sec" data-nt="'+a.t+'" '
+      +'style="text-align:left;height:auto;padding:13px 15px;margin-bottom:9px">'
+      +'<div style="font-weight:600">'+a.n+'</div>'
+      +'<div class="meta" style="margin-top:3px">'+a.d+'</div></button>').join(""));
+  E("sheetIn").querySelectorAll("[data-nt]").forEach(b=>b.onclick=()=>{
+    closeSheet(); sheetConta(null,b.dataset.nt);
+  });
 }
 
 function sheetPrecos(){
