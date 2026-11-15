@@ -446,7 +446,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
   <button data-v="contas">
     <svg viewBox="0 0 24 24"><path d="M3 9.5 12 4l9 5.5"/><path d="M4.5 9.5V18"/><path d="M19.5 9.5V18"/><path d="M8.5 11v7"/><path d="M12 11v7"/><path d="M15.5 11v7"/><path d="M2.5 20.5h19"/></svg>Contas</button>
   <button data-v="patrim">
-    <svg viewBox="0 0 24 24"><path d="M12 21v-6.5"/><path d="M12 17.2l-2.6-2.2"/><path d="M12 15.6l2.4-1.9"/><path d="M8.3 14.6a4.3 4.3 0 0 1-.9-8.2A4.7 4.7 0 0 1 16.6 6a4.3 4.3 0 0 1-.9 8.6Z"/><path d="M8 21h8"/></svg>Património</button>
+    <svg viewBox="0 0 24 24"><path d="M10.6 21v-6.2h2.8V21Z" fill="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M7.6 15.4a4.4 4.4 0 0 1-1.4-8.3A5.6 5.6 0 0 1 17.6 6.8a4.4 4.4 0 0 1-1.2 8.6Z" fill="currentColor" stroke-linejoin="round"/><path d="M7.5 21h9"/></svg>Património</button>
   <button data-v="import">
     <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>Importar</button>
 </div></nav>
@@ -456,7 +456,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="15/11 23:13";
+const BUILD="15/11 23:20";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -1655,7 +1655,8 @@ function pintaPatrim(){
       +tk("hp",S.ocPend,a=>fmt(patrimonio(a).pend))+'</b></div>':'');
 
   /* --- à ordem: contas bancárias; a prazo: depósitos e aforro. A mesma linha serve as duas --- */
-  const rende=S.contas.filter(c=>!c.secundaria&&(c.tipo==="remunerada"||c.tipo==="ordem"));
+  // as contas que não rendem não se listam aqui (vêem-se em Contas), mas contam em "Corrente"
+  const rende=S.contas.filter(c=>!c.secundaria&&c.tipo==="remunerada");
   const aPrazo=S.contas.filter(c=>!c.secundaria&&(c.tipo==="prazo"||c.tipo==="aforro"));
   const linhaRende=c=>{
     const e=estado(c,agora);

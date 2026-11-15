@@ -322,9 +322,7 @@ const sec=t=>console.log("\n"+t);
       espRet:e("trinv").valor-e("trinv").investido, espL:e("aforro").liquido+(e("pm").valor-e("pm").investido)}; });
   ok("total: corrente = à ordem + que rende; retornos certos", eq(Q.corrente,P.rende+P.ordem)&&eq(Q.ret,Q.espRet)&&eq(Q.lret,Q.espL)&&eq(Q.pj,Q.espPj)&&eq(Q.rt,Q.liq+Q.pj+Q.ret+Q.lret), Q);
   // À ordem: as contas que não rendem também lá estão, e tocar abre o editor das Contas
-  ok("À ordem lista a CGD e a Revolut", /Caixa|CGD/.test(await pg.$eval("#rendeList",e=>e.textContent)) && /Revolut/.test(await pg.$eval("#rendeList",e=>e.textContent)));
-  await pg.tap('[data-ce="cgd"]'); await pg.waitForTimeout(300);
-  ok("tocar na CGD abre o editor da conta", !!(await pg.$("#kN"))); await pg.evaluate(()=>closeSheet());
+  ok("À ordem não lista a CGD nem a Revolut, mas Corrente conta-as", !/CGD|Revolut/.test(await pg.$eval("#rendeList",e=>e.textContent)) && eq(P.ordem,P.esperadoOrd)&&P.ordem>0);
   ok("À ordem tem o juro total no fundo", /Juro total acumulado/.test(await pg.$eval("#rendeList",e=>e.textContent)));
   await pg.tap("#invHdr"); await pg.tap("#longoHdr"); await pg.waitForTimeout(250);
   ok("Investido é uma aba com o retorno no fundo", /Retorno esperado/.test(await pg.$eval("#invBody",e=>e.textContent)));
