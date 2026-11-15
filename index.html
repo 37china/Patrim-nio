@@ -314,13 +314,17 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
       <div class="big tnum" id="patTotal"></div>
       <div class="sub" id="patSub"></div>
     </div>
+    <div class="card hide" id="cardPend">
+      <h3>Compras por preencher</h3>
+      <div id="pendList"></div>
+    </div>
     <div class="card">
       <h3>À ordem</h3>
       <div id="rendeList"></div>
     </div>
     <div class="card hide" id="cardInv" style="padding-top:14px;padding-bottom:14px">
       <button type="button" id="invHdr" style="width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left">
-        <span style="font-size:14.5px;font-weight:600">Investido</span>
+        <span style="font-size:14.5px;font-weight:600">Investido<span id="invPend" class="meta" style="margin-left:7px;color:var(--warn,#f5b74a)"></span></span>
         <span id="invChev" style="color:var(--tx3);font-size:17px">›</span></button>
       <div id="invBody" class="hide" style="margin-top:12px">
         <div id="invList"></div>
@@ -444,7 +448,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="15/11 20:14";
+const BUILD="15/11 21:38";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -601,6 +605,79 @@ function pct(v){
   if(!isFinite(v)) return "—";
   return (v>=0?"+":"")+v.toLocaleString("pt-PT",{minimumFractionDigits:1,maximumFractionDigits:1})+"%";
 }
+/* ---------- planos de investimento periódico ----------
+   x.plano = {modo:"eur"|"un", qtd, per, inicio, fim, origem, comissao, precoAuto}
+   x.compras = { "AAAA-MM-DD": {un, eur} }  só as que já preencheste.
+   x.un e x.custo são a posição inicial, antes da primeira compra do plano. */
+const PERIODOS={semana:"Semanal",quinzena:"Quinzenal",mes:"Mensal",trimestre:"Trimestral"};
+const PER_TXT={semana:"por semana",quinzena:"de 15 em 15 dias",mes:"por mês",trimestre:"por trimestre"};
+const fmtUn=n=>(+n||0).toLocaleString("pt-PT",{maximumFractionDigits:6});
+function datasPlano(pl,ate){
+  const out=[]; if(!pl||!/^\d{4}-\d\d-\d\d$/.test(pl.inicio||"")) return out;
+  const fim=pl.fim&&pl.fim<ate?pl.fim:ate;
+  const [Y,M,D]=pl.inicio.split("-").map(Number), z=n=>String(n).padStart(2,"0");
+  for(let k=0;k<2000;k++){
+    let d;
+    if(pl.per==="semana"||pl.per==="quinzena"){
+      const t=new Date(Date.UTC(Y,M-1,D+k*(pl.per==="semana"?7:14)));
+      d=t.getUTCFullYear()+"-"+z(t.getUTCMonth()+1)+"-"+z(t.getUTCDate());
+    } else {
+      const m0=M-1+k*(pl.per==="trimestre"?3:1), y=Y+Math.floor(m0/12), m=m0%12;
+      const ult=new Date(Date.UTC(y,m+1,0)).getUTCDate();      // dia 31 em meses mais curtos: último dia
+      d=y+"-"+z(m+1)+"-"+z(Math.min(D,ult));
+    }
+    if(d>fim) break; out.push(d);
+  }
+  return out;
+}
+// posição com as compras do plano somadas; as por preencher são estimadas com o preço atual
+function posEf(x,hoje){
+  hoje=hoje||hojeStr();
+  const r={un:+x.un||0,custo:+x.custo||0,pr:+x.pr||0,prData:x.prData||"",pend:[],compras:[]};
+  const pl=x.plano; if(!pl||!(+pl.qtd>0)) return r;
+  const datas=datasPlano(pl,hoje), reg=x.compras||{};
+  if(pl.precoAuto!==false){
+    for(let i=datas.length-1;i>=0;i--){ const q=reg[datas[i]];
+      if(q&&+q.un>0&&+q.eur>0){ if(!r.prData||datas[i]>=r.prData){ r.pr=q.eur/q.un; r.prData=datas[i]; } break; } }
+  }
+  const com=+pl.comissao||0;
+  datas.forEach(d=>{ const q=reg[d]; let un,eur;
+    if(pl.modo==="un"){ un=+pl.qtd; eur=q?(+q.eur||0):un*r.pr; }
+    else { eur=+pl.qtd; un=q?(+q.un||0):(r.pr>0?eur/r.pr:0); }
+    r.un+=un; r.custo+=eur+com; if(!q) r.pend.push(d);
+    r.compras.push({d,un,eur,com,feito:!!q});
+  });
+  return r;
+}
+// o dinheiro que os planos tiram de uma conta, compra a compra
+function saidasPlano(id,hoje){
+  const out=[];
+  S.contas.forEach(c=>{ if(c.tipo!=="investimento") return;
+    (c.posicoes||[]).forEach(x=>{ if(x.plano&&x.plano.origem===id)
+      posEf(x,hoje).compras.forEach(k=>out.push({data:k.d,valor:k.eur+k.com})); }); });
+  return out;
+}
+// só contam as compras depois do saldo registado: as anteriores já estão nele
+function comSaidas(c,hoje){
+  const sd=saidasPlano(c.id,hoje); if(!sd.length) return c;
+  if(c.tipo==="ordem"){
+    if(!c.data) return c;
+    const t=sd.filter(q=>q.data>c.data).reduce((a,q)=>a+q.valor,0);
+    return t?Object.assign({},c,{saldo:Math.round(((+c.saldo||0)-t)*100)/100}):c;
+  }
+  const subs=c.subs||[]; if(!subs.length) return c;
+  const corte=subs.reduce((m,q)=>!m||String(q.data)<m?String(q.data):m,"");
+  const extra=sd.filter(q=>q.data>corte).map((q,i)=>({id:"pl"+i,valor:-q.valor,data:q.data}));
+  if(!extra.length) return c;
+  return Object.assign({},c,{subs:subs.concat(extra).sort((a,b)=>String(a.data||"").localeCompare(String(b.data||"")))});
+}
+function pendentesPlano(){
+  const out=[];
+  S.contas.forEach(c=>{ if(c.tipo!=="investimento") return;
+    (c.posicoes||[]).forEach(x=>{ if(x.plano) posEf(x).pend.forEach(d=>out.push({c,x,d})); }); });
+  return out.sort((a,b)=>a.d.localeCompare(b.d));
+}
+
 function posicoesTodas(){
   const out=[];
   S.contas.forEach(c=>{ if(c.tipo==="investimento") (c.posicoes||[]).forEach(x=>out.push({c:c,x:x})); });
@@ -1116,6 +1193,7 @@ function dataConta(c){
 // Devolve o estado de uma conta neste instante.
 function estado(c,agora){
   agora=agora||new Date();
+  if(c.tipo==="ordem"||c.tipo==="remunerada") c=comSaidas(c,dataStr(agora));
   if(c.tipo==="aforro") return estadoAforro(c,agora);
   if(c.tipo==="remunerada"||c.tipo==="prazo") return estadoRemunerada(c,agora);
   const base=+c.saldo||0;
@@ -1131,9 +1209,11 @@ function estado(c,agora){
     const ps=c.posicoes||[];
     if(ps.length){
       let val=0, cst=0, velho=null;
-      ps.forEach(x=>{
-        val+=(+x.un||0)*(+x.pr||0);
-        cst+=(+x.custo||0);
+      const hj=dataStr(agora);
+      ps.forEach(x0=>{
+        const x=posEf(x0,hj);
+        val+=x.un*x.pr;
+        cst+=x.custo;
         const d=idadeData(x.prData);
         if(d!==null&&(velho===null||d>velho)) velho=d;
       });
@@ -1412,7 +1492,7 @@ function patTudoOculto(){
 function patAssinatura(agora){
   return S.contas.map(c=>{ const e=estado(c,agora);
     return c.id+":"+Math.round((e.valor||0)*100)+":"+((e.pendLiq||0)>0.004?1:0)+":"+(e.vencido?1:0);
-  }).join("|");
+  }).join("|")+"#"+pendentesPlano().length;
 }
 function rPatrim(){
   LONGO_ABERTO=false; TOTAL_ABERTO=false; INV_ABERTO=false;
@@ -1464,6 +1544,20 @@ function ligaOlho(id,chave){
 function ligaPatrim(){
   E("patBody").addEventListener("click",ev=>{
     const t=ev.target;
+    const pf=t.closest("[data-pf]");
+    if(pf){
+      const [cid,pid,d]=pf.dataset.pf.split("|");
+      const inp=E("patBody").querySelector('[data-pi="'+pf.dataset.pf+'"]');
+      const v=+String(inp&&inp.value||"").replace(",",".");
+      const c=conta(cid), x=c&&(c.posicoes||[]).find(q=>q.id===pid);
+      if(!x||!x.plano) return;
+      if(!(v>0)){ toast(x.plano.modo==="un"?"Escreve quanto pagaste":"Escreve quantas unidades compraste"); return; }
+      x.compras=x.compras||{};
+      x.compras[d]=x.plano.modo==="un"?{un:+x.plano.qtd,eur:v}:{eur:+x.plano.qtd,un:v};
+      save(); toast("Compra registada"); pintaPatrim(); return;
+    }
+    const pn=t.closest("[data-plano]");
+    if(pn){ const [cid,pid]=pn.dataset.plano.split("|"); sheetPlano(cid,pid||null); return; }
     const ed=t.closest("[data-ce]");
     if(ed){ const c=conta(ed.dataset.ce); if(c&&c.tipo==="ordem") sheetConta(c.id); else sheetAtivo(ed.dataset.ce); return; }
     const vn=t.closest("[data-venc]");
@@ -1586,6 +1680,23 @@ function pintaPatrim(){
     +'<span class="v ac tnum" data-oc="ocTotJuro">'+tk("tj",S.ocTotJuro,a=>fmt4(patrimonio(a).liquido))+'</span></div>'
   :'<div class="empty">Ainda não tens nada aqui. Usa o botão "Adicionar ao património", no fundo desta página.</div>';
 
+  /* --- compras do plano por preencher --- */
+  const pend=pendentesPlano();
+  E("cardPend").classList.toggle("hide",!pend.length);
+  E("invPend").textContent=pend.length?"· "+pend.length+" por preencher":"";
+  E("pendList").innerHTML=pend.map(q=>{
+    const pl=q.x.plano, un=pl.modo==="un", k=q.c.id+"|"+q.x.id+"|"+q.d;
+    return '<div style="padding:11px 0;border-bottom:1px solid var(--line)">'
+      +'<div style="display:flex;justify-content:space-between;gap:10px"><b style="font-weight:550">'+esc(q.x.n||"Sem nome")+'</b>'
+      +'<span class="meta">'+fmtData(q.d)+'</span></div>'
+      +'<div class="meta" style="margin-top:3px">'+vis(q.c.ocultarValor,un?fmtUn(pl.qtd)+(+pl.qtd===1?" unidade comprada":" unidades compradas"):fmt(pl.qtd)+" investidos")
+      +' · '+esc(curtoNome(q.c.n))+'</div>'
+      +'<div class="inline" style="margin-top:8px"><input type="number" inputmode="decimal" step="any" data-pi="'+k+'" placeholder="'
+      +(un?"Quanto pagaste (€)":"Unidades compradas")+'">'
+      +'<button type="button" class="btn" data-pf="'+k+'" style="width:76px;flex:0 0 76px;padding:12px 0">OK</button></div></div>';
+  }).join("")
+    +(pend.length?'<p class="meta" style="margin-top:9px">Enquanto não preenches, a app estima com o último preço.</p>':'');
+
   /* --- investido: carteiras e private market em destaque --- */
   const inv=S.contas.filter(c=>!c.secundaria&&(c.tipo==="investimento"||c.tipo==="privado"));
   E("cardInv").classList.toggle("hide",!inv.length);
@@ -1607,16 +1718,21 @@ function pintaPatrim(){
         +(d===null?"Sem data de avaliação":"Avaliação de "+haQuantoTempo(d))+'</div>';
       return h+'</div>';
     }
-    h+=ps.map(x=>{
-      const val=(+x.un||0)*(+x.pr||0), gg=val-(+x.custo||0);
-      const rr=(+x.custo||0)>0?(gg/(+x.custo||0))*100:NaN;
+    h+=ps.map(x0=>{
+      const x=Object.assign({n:x0.n},posEf(x0));
+      const val=x.un*x.pr, gg=val-x.custo;
+      const rr=x.custo>0?(gg/x.custo)*100:NaN;
       const d=idadeData(x.prData);
+      const pl=x0.plano, plTxt=pl?'<button type="button" data-plano="'+c.id+'|'+x0.id+'" class="meta" style="display:block;margin-top:3px;padding:2px 0;font:inherit;font-size:12px;color:var(--tx2);text-align:left">'
+        +'Plano: '+vis(c.ocultarValor,pl.modo==="un"?fmtUn(pl.qtd)+(+pl.qtd===1?" unidade ":" unidades "):fmt(pl.qtd)+" ")+PER_TXT[pl.per]
+        +(pl.fim&&pl.fim<hojeStr()?" · Terminou":"")+(x.pend.length?' · <span style="color:var(--warn,#f5b74a)">'+x.pend.length+' por preencher</span>':'')+' ›</button>':'';
       return '<div class="meta" style="margin-top:7px;display:flex;justify-content:space-between;gap:10px">'
         +'<span style="min-width:0">'+esc(x.n||"Sem nome")+' <span style="color:var(--tx3)">'
           +vis(c.ocultarValor,(+x.un||0).toLocaleString("pt-PT",{maximumFractionDigits:6})+' × '+fmt(x.pr||0))
           +(d!==null&&d>30?' <span style="color:var(--bad)">· preço de há '+d+' d</span>':'')+'</span></span>'
-        +'<span class="tnum" style="white-space:nowrap;flex:0 0 auto">'+vis(c.ocultarValor,fmt(val)+' <span style="color:var(--'+(gg<0?"bad":"ac")+')">'+pct(rr)+'</span>')+'</span></div>';
-    }).join("");
+        +'<span class="tnum" style="white-space:nowrap;flex:0 0 auto">'+vis(c.ocultarValor,fmt(val)+' <span style="color:var(--'+(gg<0?"bad":"ac")+')">'+pct(rr)+'</span>')+'</span></div>'+plTxt;
+    }).join("")
+      +'<button type="button" data-plano="'+c.id+'|" class="btn sec" style="margin-top:11px;padding:11px">+ Plano periódico</button>';
     if(!ps.length) h+='<div class="meta" style="margin-top:7px;color:var(--tx3)">Sem posições. Toca no nome para as registar.</div>';
     return h+'</div>';
   }).join("");
@@ -2091,7 +2207,7 @@ function sheetAtivo(id,tipoNovo){
     }
     if(t==="investimento"){
       let val=0,cst=0;
-      c.posicoes.forEach((p,i)=>{ const v=(+p.un||0)*(+p.pr||0); val+=v; cst+=(+p.custo||0); poe("pv"+i,"Vale "+fmt(v)); });
+      c.posicoes.forEach((p,i)=>{ const q=posEf(p), v=q.un*q.pr; val+=v; cst+=q.custo; poe("pv"+i,"Vale "+fmt(v)+(p.plano?" com o plano":"")); });
       poe("rValor",fmt(val)); poe("rPosto",fmt(cst));
       const g=val-cst; poe("rGanho",(g>=0?"+":"−")+fmt(Math.abs(g))+(cst>0?" · "+pct(g/cst*100):""));
     }
@@ -2182,13 +2298,14 @@ function sheetAtivo(id,tipoNovo){
             +'<select data-pc="'+i+'" style="max-width:92px">'
             +Object.keys(CATS).map(k=>'<option value="'+k+'"'+(x.cat===k?" selected":"")+'>'+CATS[k]+'</option>').join("")
             +'</select><button class="x" data-px="'+i+'">×</button></div>'
-          +'<div class="inline" style="margin-bottom:5px"><span class="meta" style="flex:1">Unidades</span>'
+          +(x.plano?'<p class="meta" style="margin:0 0 7px;color:var(--tx2)">Tem plano periódico: aqui ficam as unidades e o custo iniciais. O plano mexe-se em Património › Investido.</p>':'')
+          +'<div class="inline" style="margin-bottom:5px"><span class="meta" style="flex:1">'+(x.plano?"Unidades iniciais":"Unidades")+'</span>'
             +'<span class="meta" style="flex:1">Preço (€)</span><span class="meta" style="max-width:128px;width:128px">Preço visto em</span></div>'
           +'<div class="inline" style="margin-bottom:7px">'
             +'<input type="number" inputmode="decimal" step="any" data-pu="'+i+'" value="'+(x.un||0)+'">'
             +'<input type="number" inputmode="decimal" step="any" data-pp="'+i+'" value="'+(x.pr||0)+'">'
             +'<input type="date" data-pd="'+i+'" value="'+(x.prData||"")+'" style="max-width:128px"></div>'
-          +'<div class="inline" style="margin-bottom:5px"><span class="meta" style="flex:1">Quanto paguei ao todo (€)</span></div>'
+          +'<div class="inline" style="margin-bottom:5px"><span class="meta" style="flex:1">'+(x.plano?"Quanto paguei por elas (€)":"Quanto paguei ao todo (€)")+'</span></div>'
           +'<div class="inline">'
             +'<input type="number" inputmode="decimal" data-pq="'+i+'" value="'+(x.custo||0)+'">'
             +'<span class="meta" style="flex:1;text-align:right" id="pv'+i+'"></span></div>'
@@ -2467,25 +2584,127 @@ function sheetAdicionar(){
   });
 }
 
+/* plano de investimento periódico de uma posição: o formulário */
+function sheetPlano(cid,pid){
+  const c=conta(cid); if(!c||c.tipo!=="investimento") return;
+  c.posicoes=c.posicoes||[];
+  const orig=pid?c.posicoes.find(q=>q.id===pid):null;
+  const hoje=hojeStr();
+  const x=orig?copia(orig):{id:"x"+Date.now(),n:"",cat:"etf",un:0,pr:0,prData:hoje,custo:0};
+  const tr=conta("tr");
+  const pl=x.plano?copia(x.plano):{modo:"eur",qtd:0,per:"mes",inicio:hoje,fim:"",
+    origem:tr&&(tr.tipo==="remunerada"||tr.tipo==="ordem")?"tr":"",comissao:0,precoAuto:true};
+  const limpar=new Set();
+  const origens=S.contas.filter(o=>o.tipo==="ordem"||o.tipo==="remunerada");
+  const ef0=posEf(Object.assign({},x,{plano:pl}),hoje);
+  const L=(rot,campo)=>'<label class="f"><span>'+rot+'</span>'+campo+'</label>';
+  const num=(id,v,extra)=>'<input type="number" inputmode="decimal" step="any" id="'+id+'" value="'+(v||0)+'"'+(extra||"")+'>';
+  const linhaR=(k,idv)=>'<div class="row2"><span class="k">'+k+'</span><span class="v tnum" id="'+idv+'"></span></div>';
+  const qRot=m=>m==="un"?"Unidades em cada compra":"Valor de cada compra (€)";
+  openSheet('<h2>'+(orig&&orig.plano?"Plano · "+esc(orig.n||"Sem nome"):"Novo plano periódico")+'</h2>'
+    +'<p class="meta" style="margin:-4px 0 6px">'+esc(c.n)+'</p>'
+    +SEC("Ativo")
+    +'<div class="inline" style="margin-bottom:12px"><input type="text" id="pN" value="'+esc(x.n||"")+'" placeholder="Nome ou ticker">'
+    +'<select id="pCat" style="max-width:100px">'+Object.keys(CATS).map(k=>'<option value="'+k+'"'+(x.cat===k?" selected":"")+'>'+CATS[k]+'</option>').join("")+'</select></div>'
+    +SEC("Posição inicial")
+    +'<p class="meta" style="margin:0 0 10px">O que já tinhas antes da primeira compra do plano. Se começas do zero, deixa a 0.</p>'
+    +L("Unidades que já tinhas",num("pU",x.un))
+    +L("Quanto pagaste por elas (€)",num("pC",x.custo))
+    +'<div class="inline" style="margin-bottom:5px"><span class="meta" style="flex:1">Preço por unidade (€)</span><span class="meta" style="width:128px;max-width:128px">Visto em</span></div>'
+    +'<div class="inline" style="margin-bottom:6px">'+num("pP",Math.round(ef0.pr*10000)/10000)
+    +'<input type="date" id="pPD" value="'+(ef0.prData||"")+'" style="max-width:128px"></div>'
+    +'<p class="meta" style="margin:0 0 13px">Serve para estimar as compras que ainda não preencheste.</p>'
+    +SEC("Plano")
+    +L("Em cada compra fixo",'<select id="pModo"><option value="eur"'+(pl.modo!=="un"?" selected":"")+'>Um valor em euros</option>'
+      +'<option value="un"'+(pl.modo==="un"?" selected":"")+'>Um número de unidades</option></select>')
+    +'<label class="f"><span id="pQL">'+qRot(pl.modo)+'</span>'+num("pQ",pl.qtd)+'</label>'
+    +'<p class="meta" style="margin:-6px 0 13px" id="pQN"></p>'
+    +L("Periodicidade",'<select id="pPer">'+Object.keys(PERIODOS).map(k=>'<option value="'+k+'"'+(pl.per===k?" selected":"")+'>'+PERIODOS[k]+'</option>').join("")+'</select>')
+    +L("Primeira compra do plano em",'<input type="date" id="pIni" value="'+(pl.inicio||"")+'">')
+    +L("Comissão por compra (€)",num("pCom",pl.comissao))
+    +L("O dinheiro sai de",'<select id="pOr">'+origens.map(o=>'<option value="'+o.id+'"'+(pl.origem===o.id?" selected":"")+'>'+esc(o.n)+'</option>').join("")
+      +'<option value=""'+(!pl.origem?" selected":"")+'>De fora · Não mexe em nenhuma conta</option></select>')
+    +'<p class="meta" style="margin:-6px 0 13px">Cada compra, com a comissão, sai do saldo dessa conta. Só contam as compras depois da data do saldo que lá registaste: as anteriores já estão nele.</p>'
+    +'<label class="chkTaxa" style="margin:0 0 6px"><input type="checkbox" id="pAuto"'+(pl.precoAuto!==false?" checked":"")+'>'
+    +'<span>Usar o preço de cada compra como preço atual</span></label>'
+    +'<p class="meta" style="margin:0 0 13px">Quando preenches uma compra, a app fica a saber o preço a que compraste. Se for mais recente do que o preço que lá está, passa a ser esse. Assim os preços vão-se atualizando sem teres de ir a "Atualizar preços".</p>'
+    +L("Terminou em (opcional)",'<input type="date" id="pFim" value="'+(pl.fim||"")+'">')
+    +(ef0.compras.length?SEC("Compras do plano")
+      +'<div id="pLista">'+ef0.compras.slice().reverse().map(k=>'<div class="row2" data-lin="'+k.d+'"><span class="k">'+fmtData(k.d)+'</span>'
+        +'<span class="v tnum" style="display:flex;gap:10px;align-items:center">'
+        +(k.feito?fmtUn(k.un)+' un · '+fmt(k.eur)+'<button type="button" class="x" data-pcx="'+k.d+'" aria-label="Apagar" style="width:32px;height:32px;border-radius:9px;background:var(--bg3);color:var(--tx2)">×</button>'
+          :'<span style="color:var(--warn,#f5b74a)">Por preencher</span>')
+        +'</span></div>').join("")+'</div>':'')
+    +SEC("Resultado")
+    +linhaR("Unidades agora","rUn")+linhaR("Paguei ao todo","rCst")+linhaR("Vale agora","rVal")+linhaR("Compras por preencher","rPend")
+    +'<div style="height:8px"></div><button class="btn" id="pOk">Guardar</button>'
+    +(orig&&orig.plano&&!(pl.fim&&pl.fim<=hoje)?'<button class="btn sec" id="pFimHoje">Terminar o plano hoje</button>':''));
+
+  const g=id=>E(id);
+  function colher(){
+    x.n=g("pN").value.trim(); x.cat=g("pCat").value;
+    x.un=+g("pU").value||0; x.custo=+g("pC").value||0;
+    const np=+g("pP").value||0;
+    // só passa a preço manual se mudou em relação ao que se mostrava
+    if(Math.abs(np-Math.round(ef0.pr*10000)/10000)>0.00005||g("pPD").value!==(ef0.prData||"")){ x.pr=np; x.prData=g("pPD").value||hoje; }
+    pl.modo=g("pModo").value; pl.qtd=+g("pQ").value||0; pl.per=g("pPer").value;
+    pl.inicio=g("pIni").value; pl.comissao=+g("pCom").value||0; pl.origem=g("pOr").value;
+    pl.precoAuto=g("pAuto").checked; pl.fim=g("pFim").value||"";
+    x.plano=pl;
+    if(x.compras) limpar.forEach(d=>delete x.compras[d]);
+  }
+  function resumo(){
+    colher();
+    const q=posEf(x,hoje);
+    E("rUn").textContent=fmtUn(q.un); E("rCst").textContent=fmt(q.custo); E("rVal").textContent=fmt(q.un*q.pr);
+    E("rPend").textContent=q.pend.length?String(q.pend.length):"Nenhuma";
+    E("pQL").textContent=qRot(pl.modo);
+    E("pQN").textContent=pl.modo==="un"
+      ?"Em cada período aparece uma caixa para escreveres quanto pagaste."
+      :"Em cada período aparece uma caixa para escreveres quantas unidades compraste.";
+  }
+  E("sheetIn").querySelectorAll("input,select").forEach(el=>{ el.addEventListener("input",resumo); el.addEventListener("change",resumo); });
+  E("sheetIn").querySelectorAll("[data-pcx]").forEach(b=>b.onclick=()=>{
+    const d=b.dataset.pcx; limpar.add(d);
+    const l=E("sheetIn").querySelector('[data-lin="'+d+'"] .v'); if(l) l.innerHTML='<span style="color:var(--warn,#f5b74a)">Por preencher</span>';
+    resumo();
+  });
+  resumo();
+  const grava=()=>{
+    colher();
+    if(!x.n){ toast("Falta o nome"); return false; }
+    if(!(pl.qtd>0)){ toast(pl.modo==="un"?"Falta quantas unidades compras":"Falta o valor de cada compra"); return false; }
+    if(!/^\d{4}-\d\d-\d\d$/.test(pl.inicio||"")){ toast("Falta a data da primeira compra"); return false; }
+    if(pl.fim&&pl.fim<pl.inicio){ toast("O fim é antes do início"); return false; }
+    if(orig) Object.keys(orig).forEach(k=>delete orig[k]);
+    const alvo=orig||{}; Object.assign(alvo,copia(x));
+    if(!orig) c.posicoes.push(alvo);
+    save(); return true;
+  };
+  const volta=()=>view==="patrim"?pintaPatrim():render();   // sem fechar as abas abertas
+  E("pOk").onclick=()=>{ if(grava()){ closeSheet(); toast("Plano guardado"); volta(); } };
+  if(E("pFimHoje")) E("pFimHoje").onclick=()=>{ g("pFim").value=hoje; if(grava()){ closeSheet(); toast("Plano terminado"); volta(); } };
+}
+
 function sheetPrecos(){
   const todas=posicoesTodas();
   if(!todas.length){ toast("Ainda não há posições"); return; }
   openSheet('<h2>Atualizar preços</h2>'
     +'<p class="note" style="text-align:center">Escreve o preço de cada unidade. A data passa a ser hoje em tudo o que mexeres.</p>'
     +todas.map((q,i)=>{
-      const d=idadeData(q.x.prData);
+      const d=idadeData(posEf(q.x).prData);
       return '<label class="f"><span>'+esc(q.x.n||"Sem nome")+' <span style="color:var(--tx3)">\u00b7 '+esc(curtoNome(q.c.n))
         +(d===null?'':' \u00b7 '+haQuantoTempo(d))+'</span></span>'
-        +'<input type="number" inputmode="decimal" step="any" data-pz="'+i+'" value="'+(q.x.pr||0)+'"></label>';
+        +'<input type="number" inputmode="decimal" step="any" data-pz="'+i+'" value="'+(Math.round(posEf(q.x).pr*10000)/10000)+'"></label>';
     }).join("")
     +'<button class="btn" id="przOk">Guardar preços</button>');
   E("przOk").onclick=()=>{
     const hoje=hojeStr();
     E("sheetIn").querySelectorAll("[data-pz]").forEach(el=>{
       const q=todas[+el.dataset.pz], v=+el.value||0;
-      if(q&&v!==(+q.x.pr||0)){ q.x.pr=v; q.x.prData=hoje; }
+      if(q&&Math.abs(v-posEf(q.x).pr)>0.00005){ q.x.pr=v; q.x.prData=hoje; }
     });
-    save(); closeSheet(); toast("Preços atualizados"); render();
+    save(); closeSheet(); toast("Preços atualizados"); view==="patrim"?pintaPatrim():render();
   };
 }
 function curtoNome(t){ return String(t).split("\u2014")[0].trim(); }
