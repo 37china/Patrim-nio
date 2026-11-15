@@ -426,7 +426,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="15/11 17:45";
+const BUILD="15/11 17:57";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -720,12 +720,13 @@ function go(v){
 }
 
 /* ---------- render ---------- */
+const PONTOS="\u2022\u2022\u2022\u2022\u2022";
 function tapaOcultos(){
+  // sem guardas: há elementos fixos cujo conteúdo é reescrito a cada tique,
+  // e uma marca no próprio elemento impedia-os de voltar a ser tapados
   document.querySelectorAll(".oculto").forEach(el=>{
     if(el.tagName==="INPUT") return;          // nesses escreve-se; fica o desfoque
-    if(el.dataset.tapado==="1") return;
-    el.dataset.tapado="1";
-    el.textContent="\u2022\u2022\u2022\u2022\u2022";
+    if(el.textContent!==PONTOS) el.textContent=PONTOS;
   });
 }
 function render(){
@@ -1437,7 +1438,6 @@ function pintaPatrim(){
     E("przBtn").onclick=sheetPrecos;
     E("addInv").onclick=()=>sheetConta(null,"investimento");
   }
-  tapaOcultos();
   E("longoBody").querySelectorAll("[data-cc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.cc));
   E("cardLongo").classList.toggle("hide",!S.contas.some(c=>c.secundaria));
   E("longoBody").classList.toggle("hide",!LONGO_ABERTO);
@@ -1499,7 +1499,7 @@ function pintaPatrim(){
   }).join("")+'<div class="row2" style="border:none;padding-top:12px"><span class="k">Juro total acumulado</span>'
     +'<span class="v ac tnum'+(S.ocTotJuro?" oculto":"")+'" data-oc="ocTotJuro">'+fmt4(P.liquido)+'</span></div>'
   :'<div class="empty">Preenche saldo, data e taxa numa conta para a simulação arrancar.</div>';
-
+  tapaOcultos();
 }
 
 function SEC(t){
