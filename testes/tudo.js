@@ -91,7 +91,7 @@ const sec=t=>console.log("\n"+t);
 
   // A4 Património: olho = esconder tudo; se já está tudo, mostrar tudo
   await pg.evaluate(()=>go("patrim")); await pg.waitForTimeout(300);
-  await pg.tap("#longoHdr"); await pg.tap("#totHdr"); await pg.waitForTimeout(250);
+  await pg.tap("#longoHdr"); await pg.tap("#totHdr"); await pg.tap("#invHdr"); await pg.waitForTimeout(250);
   // nenhum saldo nem montante posto pode existir no HTML, nem em atributos
   // (procura-se o montante inteiro, "212,45": só "212" apanhava o nome "Trading 212")
   const proibidos=await pg.evaluate(()=>{ const o=new Set(); S.contas.forEach(c=>{ const e=estado(c,new Date());
@@ -257,6 +257,7 @@ const sec=t=>console.log("\n"+t);
   ok("tocar na TR abre o formulário de conta com juros", !!(await pg.$("#aSubs")) && !!(await pg.$("#cTaxas")) && !(await pg.$("#aVence")));
   await pg.evaluate(()=>closeSheet());
   // carteira: editar posição atualiza as contas no sítio
+  await pg.tap("#invHdr"); await pg.waitForTimeout(250);
   await pg.tap('[data-ce="trinv"]'); await pg.waitForTimeout(300);
   await pg.fill('[data-pp="0"]',"130"); await pg.waitForTimeout(150);
   ok("carteira: 'Vale agora' acompanha o preço", (await pg.$eval("#rValor",e=>e.textContent)).includes("1612,00"), await pg.$eval("#rValor",e=>e.textContent));
@@ -313,7 +314,34 @@ const sec=t=>console.log("\n"+t);
   ok("total: hero = tudo menos longo prazo; total = tudo", eq(P.valor,P.rende+P.invest+P.ordem)&&eq(P.total,P.valor+P.longo), P);
   await pg.evaluate(()=>go("patrim")); await pg.waitForTimeout(300); await pg.tap("#totHdr"); await pg.waitForTimeout(250);
   const linhas=await pg.$$eval("#totBody .k",e=>e.map(x=>x.textContent));
-  ok("aba do total mostra as parcelas", ["A render","Investido","Contas que não rendem","Longo prazo","Tudo somado"].every(x=>linhas.includes(x)), linhas);
+  ok("aba do total: as oito linhas pela ordem pedida", linhas.join("|").replace("Juro e retorno acumulado","Juro acumulado")==="Corrente|Juro acumulado|Investido|Retorno esperado|Longo prazo|Juro acumulado|Retorno total|Património total", linhas);
+  const Q=await pg.evaluate(()=>{ const p=patrimonio(new Date()); const e=id=>estado(conta(id),new Date());
+    return {corrente:p.corrente,ret:p.retInv,lret:p.longoRet,rt:p.retTotal,liq:p.liquido,
+      espRet:e("trinv").valor-e("trinv").investido, espL:e("aforro").liquido+(e("pm").valor-e("pm").investido)}; });
+  ok("total: corrente = à ordem + que rende; retornos certos", eq(Q.corrente,P.rende+P.ordem)&&eq(Q.ret,Q.espRet)&&eq(Q.lret,Q.espL)&&eq(Q.rt,Q.liq+Q.ret+Q.lret), Q);
+  // À ordem: as contas que não rendem também lá estão, e tocar abre o editor das Contas
+  ok("À ordem lista a CGD e a Revolut", /Caixa|CGD/.test(await pg.$eval("#rendeList",e=>e.textContent)) && /Revolut/.test(await pg.$eval("#rendeList",e=>e.textContent)));
+  await pg.tap('[data-ce="cgd"]'); await pg.waitForTimeout(300);
+  ok("tocar na CGD abre o editor da conta", !!(await pg.$("#kN"))); await pg.evaluate(()=>closeSheet());
+  ok("À ordem tem o juro total no fundo", /Juro total acumulado/.test(await pg.$eval("#rendeList",e=>e.textContent)));
+  await pg.tap("#invHdr"); await pg.tap("#longoHdr"); await pg.waitForTimeout(250);
+  ok("Investido é uma aba com o retorno no fundo", /Retorno esperado/.test(await pg.$eval("#invBody",e=>e.textContent)));
+  ok("Longo prazo tem o juro no fundo", /acumulado/.test(await pg.$eval("#longoBody",e=>e.textContent)));
+  // número grande: escolher as partes
+  const big=()=>pg.$eval("#patTotal",e=>parseFloat(e.textContent.replace(/[^\d,]/g,"").replace(",",".")));
+  ok("número grande por omissão = corrente + investido", eq(await big(), Math.round((P.rende+P.ordem+P.invest)*100)/100), await big());
+  await pg.tap("#patLbl"); await pg.waitForTimeout(300);
+  await pg.uncheck('[data-pt="corrente"]'); await pg.uncheck('[data-pt="invest"]'); await pg.check('[data-pt="longo"]');
+  await pg.tap("#ptOk"); await pg.waitForTimeout(300);
+  ok("só longo prazo", eq(await big(), Math.round(P.longo*100)/100) && (await pg.$eval("#patLbl",e=>e.textContent)).startsWith("Longo prazo"), await big());
+  await pg.tap("#patLbl"); await pg.waitForTimeout(300);
+  await pg.check('[data-pt="corrente"]'); await pg.check('[data-pt="invest"]'); await pg.tap("#ptOk"); await pg.waitForTimeout(300);
+  ok("as três = património total", eq(await big(), Math.round(P.total*100)/100) && (await pg.$eval("#patLbl",e=>e.textContent)).startsWith("Património total"), await big());
+  await pg.tap("#patLbl"); await pg.waitForTimeout(300);
+  ["corrente","invest","longo"].forEach(()=>{}); 
+  for(const k of ["corrente","invest","longo"]) await pg.uncheck('[data-pt="'+k+'"]');
+  await pg.tap("#ptOk"); await pg.waitForTimeout(250);
+  ok("nenhuma escolhida: não grava", !!(await pg.$("#ptOk"))); await pg.evaluate(()=>closeSheet());
   // pote que espelha um depósito a prazo: o ± explica em vez de fingir
   await pg.evaluate(()=>{ pote("investir").conta="dp"; pote("investir").espelho=true; save(); go("potes"); }); await pg.waitForTimeout(250);
   await pg.tap('[data-pd="investir"]'); await pg.waitForTimeout(300);

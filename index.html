@@ -309,18 +309,24 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
       <button type="button" id="patOlho" class="olho" data-noswipe aria-label="Mostrar ou ocultar todos os valores"
         style="position:absolute;top:6px;right:6px;width:44px;height:44px;border-radius:12px;
         display:flex;align-items:center;justify-content:center;z-index:3"></button>
-      <div class="lbl">Património agora</div>
+      <button type="button" id="patLbl" class="lbl" data-noswipe style="font:inherit;color:inherit;text-align:left;padding:6px 0;margin:-6px 0 -2px">Património agora<span class="seta" style="display:inline;margin-left:5px">›</span></button>
+      <div class="meta" id="patPartes" style="margin:-1px 0 2px"></div>
       <div class="big tnum" id="patTotal"></div>
       <div class="sub" id="patSub"></div>
     </div>
     <div class="card">
-      <h3>A render agora</h3>
+      <h3>À ordem</h3>
       <div id="rendeList"></div>
     </div>
-    <div class="card hide" id="cardInv">
-      <h3>Investido</h3>
-      <div id="invList"></div>
-      <button class="btn sec" id="przBtn" style="margin-top:12px">Atualizar preços</button>
+    <div class="card hide" id="cardInv" style="padding-top:14px;padding-bottom:14px">
+      <button type="button" id="invHdr" style="width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left">
+        <span style="font-size:14.5px;font-weight:600">Investido</span>
+        <span id="invChev" style="color:var(--tx3);font-size:17px">›</span></button>
+      <div id="invBody" class="hide" style="margin-top:12px">
+        <div id="invList"></div>
+        <button class="btn sec" id="przBtn" style="margin-top:12px">Atualizar preços</button>
+        <div id="invFim"></div>
+      </div>
     </div>
 
     <div class="card hide" id="cardLongo" style="padding-top:14px;padding-bottom:14px">
@@ -438,7 +444,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="15/11 18:42";
+const BUILD="15/11 20:14";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -1328,17 +1334,22 @@ function estadoAforro(c,agora){
 
 function patrimonio(agora){
   agora=agora||new Date();
-  const P={rende:0,invest:0,ordem:0,longo:0,liquido:0,pend:0,bruto:0,longoLiq:0,meu:0,reserva:0};
+  const P={rende:0,invest:0,ordem:0,longo:0,liquido:0,pend:0,bruto:0,longoLiq:0,meu:0,reserva:0,retInv:0,longoRet:0};
+  const ehInv=c=>c.tipo==="investimento"||c.tipo==="privado";
+  const ganhoDe=e=>e.ganho!=null?e.ganho:(e.valor||0)-(e.investido||0);
   S.contas.forEach(c=>{
     const e=estado(c,agora);
-    if(c.secundaria){ P.longo+=e.valor||0; P.longoLiq+=e.liquido||0; return; }
+    if(c.secundaria){ P.longo+=e.valor||0; P.longoLiq+=e.liquido||0;
+      P.longoRet+=ehInv(c)?ganhoDe(e):(e.liquido||0); return; }
     if(c.tipo==="ordem") P.ordem+=e.valor||0;
-    else if(c.tipo==="investimento"||c.tipo==="privado") P.invest+=e.valor||0;
+    else if(ehInv(c)){ P.invest+=e.valor||0; P.retInv+=ganhoDe(e); }
     else { P.rende+=e.valor||0; P.liquido+=e.liquido||0; P.pend+=e.pendLiq||0; P.bruto+=e.bruto||0; }
     P.meu+=e.meu||0; P.reserva+=e.reserva||0;
   });
-  P.valor=P.rende+P.invest+P.ordem;      // tudo menos o longo prazo
+  P.corrente=P.rende+P.ordem;            // o que está nos bancos, a render ou não
+  P.valor=P.corrente+P.invest;           // tudo menos o longo prazo
   P.total=P.valor+P.longo;
+  P.retTotal=P.liquido+P.retInv+P.longoRet;
   return P;
 }
 
@@ -1385,8 +1396,16 @@ async function faceIdPedir(idB64){
    pintaPatrim() desenha tudo; o tique de cada segundo só reescreve os números que
    mexem. A lista não é refeita a cada segundo: um elemento substituído debaixo
    do dedo perdia o toque. Só se redesenha quando a estrutura muda. */
-let TICK=null, LONGO_ABERTO=false, TOTAL_ABERTO=false, PAT_ASS="", TK={};
-const PAT_CHAVES=["patOculto","ocJuro","ocPend","ocTotJuro","ocTotR","ocTotI","ocTotO","ocTotL","ocTotT","ocTotJ"];
+let TICK=null, LONGO_ABERTO=false, TOTAL_ABERTO=false, INV_ABERTO=false, PAT_ASS="", TK={};
+const PAT_CHAVES=["patOculto","ocJuro","ocPend","ocHeroRet","ocTotJuro","ocInvRet","ocLongoJ",
+  "ocTotC","ocTotJC","ocTotI","ocTotRI","ocTotL","ocTotJL","ocTotRT","ocTotT"];
+// o que soma o número grande: qualquer combinação das três partes
+const PARTES={corrente:"Corrente",invest:"Investido",longo:"Longo prazo"};
+function heroPartes(){
+  const v=Array.isArray(S.heroPartes)?S.heroPartes.filter(k=>PARTES[k]):[];
+  return v.length?v:["corrente","invest"];
+}
+function heroValor(P,partes){ return partes.reduce((t,k)=>t+(k==="corrente"?P.corrente:k==="invest"?P.invest:P.longo),0); }
 function patTudoOculto(){
   return PAT_CHAVES.every(k=>!!S[k]) && S.contas.every(c=>c.ocultarValor&&c.ocultarJuro);
 }
@@ -1396,7 +1415,7 @@ function patAssinatura(agora){
   }).join("|");
 }
 function rPatrim(){
-  LONGO_ABERTO=false; TOTAL_ABERTO=false;
+  LONGO_ABERTO=false; TOTAL_ABERTO=false; INV_ABERTO=false;
   registaSnap(); save();
   pintaPatrim();
   if(TICK) clearInterval(TICK);
@@ -1446,7 +1465,7 @@ function ligaPatrim(){
   E("patBody").addEventListener("click",ev=>{
     const t=ev.target;
     const ed=t.closest("[data-ce]");
-    if(ed){ sheetAtivo(ed.dataset.ce); return; }
+    if(ed){ const c=conta(ed.dataset.ce); if(c&&c.tipo==="ordem") sheetConta(c.id); else sheetAtivo(ed.dataset.ce); return; }
     const vn=t.closest("[data-venc]");
     if(vn){ sheetVencido(vn.dataset.venc); return; }
     const vt=t.closest("[data-vt]");
@@ -1462,6 +1481,8 @@ function ligaPatrim(){
   });
   E("longoHdr").onclick=()=>{ LONGO_ABERTO=!LONGO_ABERTO; pintaPatrim(); };
   E("totHdr").onclick=()=>{ TOTAL_ABERTO=!TOTAL_ABERTO; pintaPatrim(); };
+  E("invHdr").onclick=()=>{ INV_ABERTO=!INV_ABERTO; pintaPatrim(); };
+  E("patLbl").onclick=sheetPartes;
   E("przBtn").onclick=sheetPrecos;
   E("addPat").onclick=sheetAdicionar;
 }
@@ -1505,19 +1526,34 @@ function pintaPatrim(){
 
   /* --- cabeçalho --- */
   E("patOlho").innerHTML = patTudoOculto() ? OLHO_OFF : OLHO_ON;
+  const partes=heroPartes(), tudo=partes.length===3;
+  E("patLbl").firstChild.textContent=tudo?"Património total":partes.length===1?PARTES[partes[0]]:"Património agora";
+  E("patPartes").textContent=partes.length===2?partes.map(k=>PARTES[k]).join(" + "):"";
+  E("patPartes").style.display=partes.length===2?"":"none";
   const hv=E("patTotal");
-  hv.innerHTML=vis(S.patOculto,(Math.round(P.valor*100)/100).toLocaleString("pt-PT",{minimumFractionDigits:2,maximumFractionDigits:2})+"<small>€</small>");
+  hv.innerHTML=vis(S.patOculto,(Math.round(heroValor(P,partes)*100)/100).toLocaleString("pt-PT",{minimumFractionDigits:2,maximumFractionDigits:2})+"<small>€</small>");
   hv.onclick=()=>{ S.patOculto=!S.patOculto; save(); pintaPatrim(); };
-  E("patSub").innerHTML='<div>Juro acumulado <b class="tnum" data-oc="ocJuro">'
-      +tk("hj",S.ocJuro,a=>fmt4(patrimonio(a).liquido))+'</b></div>'
-    +(P.pend>0.004?'<div>Ainda por entrar na conta <b class="tnum" data-oc="ocPend">'
+  // por baixo, o que essas partes renderam
+  const comC=partes.includes("corrente"), comI=partes.includes("invest"), comL=partes.includes("longo");
+  const juroHero=a=>{ const q=patrimonio(a); return (comC?q.liquido:0)+(comL?q.longoRet:0); };
+  E("patSub").innerHTML=
+    (comC||comL?'<div>'+(comL&&S.contas.some(c=>c.secundaria&&(c.tipo==="investimento"||c.tipo==="privado"))?"Juro e retorno acumulado":"Juro acumulado")
+      +' <b class="tnum" data-oc="ocJuro">'+tk("hj",S.ocJuro,a=>fmt4(juroHero(a)))+'</b></div>':'')
+    +(comI&&P.invest>0.004?'<div>Retorno esperado <b class="tnum" data-oc="ocHeroRet">'
+      +vis(S.ocHeroRet,(P.retInv>=0?"+":"−")+fmt(Math.abs(P.retInv)))+'</b></div>':'')
+    +(comC&&P.pend>0.004?'<div>Ainda por entrar na conta <b class="tnum" data-oc="ocPend">'
       +tk("hp",S.ocPend,a=>fmt(patrimonio(a).pend))+'</b></div>':'');
 
   /* --- a render agora: contas com juro, depósitos a prazo, aforro em destaque --- */
-  const rende=S.contas.filter(c=>!c.secundaria&&(c.tipo==="remunerada"||c.tipo==="prazo"||c.tipo==="aforro"));
+  const rende=S.contas.filter(c=>!c.secundaria&&(c.tipo==="remunerada"||c.tipo==="prazo"||c.tipo==="aforro"||c.tipo==="ordem"));
   E("rendeList").innerHTML=rende.length?rende.map(c=>{
     const e=estado(c,agora);
     let h='<div style="padding:14px 0;border-bottom:1px solid var(--line)">'+cabeca(c,e);
+    if(c.tipo==="ordem"){
+      const d=idadeSaldo(c);
+      return h+'<div class="meta" style="margin-top:4px'+(d!==null&&d>30?';color:var(--bad)':'')+'">Não rende · '
+        +(d===null?"Sem saldo registado":"Saldo de "+haQuantoTempo(d))+'</div></div>';
+    }
     if(!(e.investido>0)){
       return h+'<div class="meta" style="margin-top:5px;color:var(--tx3)">Sem dinheiro registado. Toca no nome para o preencher.</div></div>';
     }
@@ -1548,13 +1584,18 @@ function pintaPatrim(){
   }).join("")
     +'<div class="row2" style="border:none;padding-top:12px"><span class="k">Juro total acumulado</span>'
     +'<span class="v ac tnum" data-oc="ocTotJuro">'+tk("tj",S.ocTotJuro,a=>fmt4(patrimonio(a).liquido))+'</span></div>'
-  :'<div class="empty">Ainda não tens nada a render. Usa o botão "Adicionar ao património", no fundo desta página.</div>';
+  :'<div class="empty">Ainda não tens nada aqui. Usa o botão "Adicionar ao património", no fundo desta página.</div>';
 
   /* --- investido: carteiras e private market em destaque --- */
   const inv=S.contas.filter(c=>!c.secundaria&&(c.tipo==="investimento"||c.tipo==="privado"));
   E("cardInv").classList.toggle("hide",!inv.length);
+  E("invBody").classList.toggle("hide",!INV_ABERTO);
+  E("invChev").style.transform=INV_ABERTO?"rotate(90deg)":"";
   E("przBtn").style.display=posicoesTodas().length?"":"none";
-  E("invList").innerHTML=inv.map(c=>{
+  E("invFim").innerHTML=!INV_ABERTO?"":'<div class="row2" style="border:none;padding-top:12px"><span class="k">Retorno esperado</span>'
+    +'<span class="v tnum" data-oc="ocInvRet" style="color:var(--'+(P.retInv<0?"bad":"ac")+')">'
+    +vis(S.ocInvRet,(P.retInv>=0?"+":"−")+fmt(Math.abs(P.retInv)))+'</span></div>';
+  E("invList").innerHTML=!INV_ABERTO?"":inv.map(c=>{
     const e=estado(c,agora), ps=c.posicoes||[];
     const g=e.ganho||0, r=e.investido>0?(g/e.investido)*100:NaN;
     let h='<div style="padding:14px 0;border-bottom:1px solid var(--line)">'+cabeca(c,e)
@@ -1605,21 +1646,44 @@ function pintaPatrim(){
         +'<span class="v ac tnum" data-ocj="'+c.id+'">'+tk("lj:"+c.id,c.ocultarJuro,a=>fmt4(estado(c,a).liquido||0))+'</span></div>':'')
       +(c.tipo==="prazo"&&e.vencido?'<button type="button" class="btn" data-venc="'+c.id+'" style="margin-top:11px">Venceu. Passar o dinheiro para uma conta</button>':'')
       +'</div>';
-  }).join("");
+  }).join("")
+    +(LONGO_ABERTO?'<div class="row2" style="border:none;padding-top:12px"><span class="k">'
+      +(longos.some(c=>c.tipo==="investimento"||c.tipo==="privado")?"Juro e retorno acumulado":"Juro total acumulado")+'</span>'
+      +'<span class="v ac tnum" data-oc="ocLongoJ">'+tk("ljt",S.ocLongoJ,a=>fmt4(patrimonio(a).longoRet))+'</span></div>':"");
 
   /* --- património total: as parcelas e a soma --- */
   E("totBody").classList.toggle("hide",!TOTAL_ABERTO);
   E("totChev").style.transform=TOTAL_ABERTO?"rotate(90deg)":"";
   const parcela=(rot,ch,v)=>'<div class="row2"><span class="k">'+rot+'</span><span class="v tnum" data-oc="'+ch+'">'+vis(S[ch],fmt(v))+'</span></div>';
+  const sinal=v=>(v>=0?"+":"−")+fmt(Math.abs(v));
+  const ret=(rot,ch,html)=>'<div class="row2" style="padding-top:0"><span class="k" style="padding-left:12px;color:var(--tx3)">'+rot+'</span>'
+    +'<span class="v ac tnum" data-oc="'+ch+'">'+html+'</span></div>';
   E("totBody").innerHTML=!TOTAL_ABERTO?"":
-    parcela("A render",'ocTotR',P.rende)
-    +(P.invest>0.004?parcela("Investido",'ocTotI',P.invest):'')
-    +(P.ordem>0.004?parcela("Contas que não rendem",'ocTotO',P.ordem):'')
-    +(P.longo>0.004?parcela("Longo prazo",'ocTotL',P.longo):'')
-    +'<div class="row2" style="border:none"><span class="k">Tudo somado</span>'
-    +'<span class="v tnum" data-oc="ocTotT" style="font-size:17px;font-weight:650">'+vis(S.ocTotT,fmt(P.total))+'</span></div>'
-    +'<div class="row2" style="border:none;padding-top:0"><span class="k">Juro acumulado, tudo incluído</span>'
-    +'<span class="v ac tnum" data-oc="ocTotJ">'+tk("ttj",S.ocTotJ,a=>{const q=patrimonio(a);return fmt4(q.liquido+q.longoLiq);})+'</span></div>';
+    parcela("Corrente",'ocTotC',P.corrente)
+    +ret("Juro acumulado",'ocTotJC',tk("tjc",S.ocTotJC,a=>fmt4(patrimonio(a).liquido)))
+    +parcela("Investido",'ocTotI',P.invest)
+    +ret("Retorno esperado",'ocTotRI',vis(S.ocTotRI,sinal(P.retInv)))
+    +parcela("Longo prazo",'ocTotL',P.longo)
+    +ret(S.contas.some(c=>c.secundaria&&(c.tipo==="investimento"||c.tipo==="privado"))?"Juro e retorno acumulado":"Juro acumulado",'ocTotJL',tk("tjl",S.ocTotJL,a=>fmt4(patrimonio(a).longoRet)))
+    +'<div class="row2"><span class="k">Retorno total</span>'
+    +'<span class="v ac tnum" data-oc="ocTotRT">'+tk("trt",S.ocTotRT,a=>{const q=patrimonio(a);return (q.retTotal<0?"−":"+")+fmt4(Math.abs(q.retTotal));})+'</span></div>'
+    +'<div class="row2" style="border:none"><span class="k">Património total</span>'
+    +'<span class="v tnum" data-oc="ocTotT" style="font-size:17px;font-weight:650">'+vis(S.ocTotT,fmt(P.total))+'</span></div>';
+}
+
+/* escolher o que soma o número grande */
+function sheetPartes(){
+  const atual=heroPartes();
+  openSheet('<h2>O número grande</h2>'
+    +'<p class="meta" style="margin:-4px 0 14px">Escolhe o que entra na soma. Pode ser só uma parte ou várias.</p>'
+    +Object.keys(PARTES).map(k=>'<label class="chkTaxa" style="margin:0 0 10px;padding:13px 12px"><input type="checkbox" data-pt="'+k+'"'+(atual.includes(k)?" checked":"")+'>'
+      +'<span>'+PARTES[k]+'</span></label>').join("")
+    +'<button class="btn" id="ptOk" style="margin-top:6px">Guardar</button>');
+  E("ptOk").onclick=()=>{
+    const v=[...document.querySelectorAll("[data-pt]")].filter(x=>x.checked).map(x=>x.dataset.pt);
+    if(!v.length){ toast("Escolhe pelo menos uma"); return; }
+    S.heroPartes=v; save(); closeSheet(); pintaPatrim();
+  };
 }
 
 /* um depósito que venceu: o dinheiro voltou para uma conta, e o depósito sai */
