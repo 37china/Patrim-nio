@@ -236,15 +236,20 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
   <!-- ============ POTES ============ -->
   <section id="v-potes" class="hide">
     <div class="card" style="position:relative">
-      <h3>Os meus potes</h3>
-      <p class="meta" style="margin:-4px 0 12px">O valor à direita é o que o pote tem agora.</p>
+      <h3>Os meus objetivos</h3>
+      <p class="meta" style="margin:-4px 0 12px" id="objResumo"></p>
       <div id="olhoPotesWrap"></div>
-      <div id="rolloverPotes"></div>
       <div id="potesTudo"></div>
       <div class="inline" style="margin-top:12px">
-        <button class="btn sec" id="addPote" style="margin:0">+ Novo pote</button>
-        <button class="btn sec" id="ordPote" style="margin:0;max-width:130px">Reordenar</button>
+        <button class="btn sec" id="addPote" style="margin:0">+ Novo objetivo</button>
+        <button class="btn sec" id="ordPote" style="margin:0;max-width:130px">Prioridade</button>
       </div>
+    </div>
+    <div class="card hide" id="cardComprados" style="padding-top:14px;padding-bottom:14px">
+      <button type="button" id="compHdr" style="width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left">
+        <span style="font-size:14.5px;font-weight:600">Comprados</span>
+        <span id="compChev" style="color:var(--tx3);font-size:17px">›</span></button>
+      <div id="compList" class="hide" style="margin-top:10px"></div>
     </div>
   </section>
 
@@ -284,6 +289,17 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
       <h3>Orçamento</h3>
       <div id="fixasList"></div>
       <button class="btn sec" id="addFixa" style="margin-top:10px">+ Adicionar linha</button>
+    </div>
+
+    <div class="card">
+      <h3>Para os objetivos</h3>
+      <p class="meta" style="margin:-4px 0 12px">Quanto vai para cada objetivo todos os meses. Se não chegar para todos, enche primeiro os de cima, pela prioridade que lhes deres em Objetivos.</p>
+      <div id="orcObj"></div>
+    </div>
+
+    <div class="card">
+      <h3>Para gastar</h3>
+      <div id="orcGastar"></div>
     </div>
 
 
@@ -442,7 +458,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
   <button data-v="orc" class="on">
     <svg viewBox="0 0 24 24"><path d="M16.5 5.5A5.5 5.5 0 0 0 8 10v4a5.5 5.5 0 0 0 8.5 4.5"/><path d="M4.5 11h7"/><path d="M4.5 14h7"/></svg>Orçamento</button>
   <button data-v="potes">
-    <svg viewBox="0 0 24 24"><path d="M9 3.5h6l-1.4 2.9a7.8 7.8 0 0 1 4.9 7.2c0 4-3.4 6.9-6.5 6.9s-6.5-2.9-6.5-6.9a7.8 7.8 0 0 1 4.9-7.2Z"/><path d="M14.3 12.3a3.2 3.2 0 1 0 0 5.2"/><path d="M8.6 13.6h4.4"/><path d="M8.6 15.6h4.4"/></svg>Potes</button>
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="13" r="8"/><circle cx="11" cy="13" r="4.4"/><circle cx="11" cy="13" r=".9" fill="currentColor"/><path d="M11 13l7.4-7.4"/><path d="M18.4 5.6V2.6M18.4 5.6h3"/></svg>Objetivos</button>
   <button data-v="contas">
     <svg viewBox="0 0 24 24"><path d="M3 9.5 12 4l9 5.5"/><path d="M4.5 9.5V18"/><path d="M19.5 9.5V18"/><path d="M8.5 11v7"/><path d="M12 11v7"/><path d="M15.5 11v7"/><path d="M2.5 20.5h19"/></svg>Contas</button>
   <button data-v="patrim">
@@ -456,7 +472,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="15/11 23:26";
+const BUILD="16/11 15:51";
 const DEF={
  v:1, rendimento:550,
  fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
@@ -594,6 +610,7 @@ const mesKey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
 const MESES=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 function mesNome(k){const[a,m]=k.split("-");return Mai(MESES[+m-1])+" "+a;}
 const pote=id=>S.potes.find(p=>p.id===id);
+const potesVivos=()=>S.potes.filter(p=>p.estado!=="comprado");
 const totalFixas=()=>S.fixas.reduce((a,f)=>a+(+f.v||0),0);
 const somaFixas=()=>S.fixas.filter(f=>f.f!==false).reduce((a,f)=>a+(+f.v||0),0);
 const somaVars=()=>S.fixas.filter(f=>f.f===false).reduce((a,f)=>a+(+f.v||0),0);
@@ -602,7 +619,7 @@ const sobras=()=>S.rendimento-totalFixas();
 function esperadoDe(c){
   if(!c) return 0;
   if(c.esperado==="auto"){
-    const aqui=S.potes.filter(x=>x.conta===c.id);
+    const aqui=potesVivos().filter(x=>x.conta===c.id);
     if(!aqui.length) return 0;
     return aqui.reduce((a,x)=>a+(x.fix?totalFixas():(+x.aloc||0)),0);
   }
@@ -703,13 +720,63 @@ function idadeSaldo(c){
 function haQuantoTempo(d){
   return d===0?"hoje":d===1?"ontem":"h\u00e1 "+d+" dias";
 }
-function sozinhoNaConta(p){ return !!p.conta && S.potes.filter(x=>x.conta===p.conta).length===1; }
+function sozinhoNaConta(p){ return !!p.conta && potesVivos().filter(x=>x.conta===p.conta).length===1; }
 function espelha(p){ return !!p.conta && p.espelho!==false && (p.espelho===true || sozinhoNaConta(p)); }
 function saldoPote(p){
   if(espelha(p)){ const c=conta(p.conta); if(c) return estado(c,new Date()).valor||0; }
   return +p.saldo||0;
 }
-const alocado=()=>S.potes.filter(p=>!p.fix&&!p.semRep).reduce((a,p)=>a+(+p.aloc||0),0);
+/* ---------- objetivos ----------
+   Um objetivo é um pote: p.obj (preço), p.prazo (data), p.parte (% que é tua),
+   p.metaMeses (meta em meses de despesas), p.nota, p.estado="comprado" + p.comprado {d,v}.
+   A ordem em S.potes é a prioridade. O pote das despesas (p.fix) não é um objetivo. */
+const objetivos=()=>S.potes.filter(p=>!p.fix&&p.estado!=="comprado");
+function alvoDe(p){
+  const base=(+p.metaMeses>0)?(+p.metaMeses)*totalFixas():(+p.obj||0);
+  const parte=(+p.parte>0&&+p.parte<100)?+p.parte:100;
+  return Math.round(base*parte)/100;
+}
+// meses de enchimento até ao prazo: o deste mês, se ainda não entrou, e os seguintes antes da data
+function enchimentosAte(prazo){
+  if(!prazo) return null;
+  const h=new Date(), t=new Date(prazo+"T12:00:00"); if(isNaN(t)) return null;
+  let m=(t.getFullYear()-h.getFullYear())*12+(t.getMonth()-h.getMonth());
+  if(S.mesAtivo!==mesKey(h)) m+=1;          // o enchimento deste mês ainda está por fazer
+  return m;
+}
+// o que cada objetivo recebe mesmo, por prioridade, com o dinheiro que sobra das despesas
+function reparticao(){
+  let disp=Math.max(0,(+S.rendimento||0)-totalFixas()); const r={}; let pedido=0;
+  objetivos().forEach(p=>{
+    const a=p.semRep?0:Math.max(0,+p.aloc||0); pedido+=a;
+    const dado=Math.min(a,disp); disp-=dado; r[p.id]={pedido:a,dado:Math.round(dado*100)/100};
+  });
+  const dado=Object.values(r).reduce((t,x)=>t+x.dado,0);
+  return {r,pedido,dado,falta:Math.max(0,pedido-dado),gastar:(+S.rendimento||0)-somaFixas()-dado};
+}
+const MES_CURTO=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+function mesAno(n){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+n); return MES_CURTO[d.getMonth()]+" "+d.getFullYear(); }
+// estado de um objetivo, em palavras
+function estadoObj(p,rp){
+  const alvo=alvoDe(p), sld=saldoPote(p), falta=Math.max(0,alvo-sld);
+  const dado=rp?rp.dado:0, o={alvo,sld,falta,dado,nivel:"",txt:"",precisa:null};
+  if(!(alvo>0)){ o.txt=dado>0?"Recebe "+fmt(dado)+" por mês":"Sem meta"; return o; }
+  if(falta<0.005){ o.nivel="ok"; o.txt="Já tens o dinheiro"; return o; }
+  const n=enchimentosAte(p.prazo);
+  if(n!==null){
+    if(n<=0){ o.nivel="mal"; o.txt="O prazo chegou e faltam "+fmt(falta); return o; }
+    o.precisa=Math.ceil(falta/n*100)/100;
+    if(dado+0.005>=o.precisa){ o.nivel="ok"; o.txt="A tempo · "+fmt(o.precisa)+" por mês chegam"; }
+    else { o.nivel="mal"; o.txt="Atrasado · precisas de "+fmt(o.precisa)+" por mês"+(dado>0?", dás "+fmt(dado):""); }
+  }
+  if(dado>0){
+    const meses=Math.ceil(falta/dado)-(S.mesAtivo!==mesKey(new Date())?1:0);
+    const quando="Ao ritmo atual chegas em "+mesAno(Math.max(0,meses));
+    o.txt=o.txt?o.txt+" · "+quando:quando;
+  } else if(!o.txt) o.txt="Sem valor por mês: define-o no Orçamento";
+  return o;
+}
+const alocado=()=>reparticao().dado;
 function movsMes(k){return S.movs.filter(m=>m.d.slice(0,7)===k);}
 function gastosMes(k){return movsMes(k).filter(m=>m.cat!=="Ajuste");}
 function diasRestantes(){const n=new Date();const u=new Date(n.getFullYear(),n.getMonth()+1,0).getDate();return Math.max(1,u-n.getDate()+1);}
@@ -726,10 +793,12 @@ function registaSnap(){
 /* ---------- ciclo mensal ---------- */
 function aplicarMes(k){
   const c=pote("correntes"); if(c){c.aloc=totalFixas();}
+  const rp=reparticao().r;
   S.potes.forEach(p=>{
+    if(p.estado==="comprado") return;
     if(espelha(p)) return;           // o saldo vem da conta, n\u00e3o se inventa
-    const a=p.fix?totalFixas():(+p.aloc||0);
-    if(p.acum){p.saldo=(+p.saldo||0)+a;}else{p.saldo=a;}});
+    const a=p.fix?totalFixas():(rp[p.id]?rp[p.id].dado:0);
+    if(p.acum||!p.fix){p.saldo=Math.round(((+p.saldo||0)+a)*100)/100;}else{p.saldo=a;}});
   S.mesAtivo=k; save();
 }
 function checkRollover(){
@@ -740,7 +809,7 @@ function checkRollover(){
 }
 
 /* ---------- navegação ---------- */
-const TITULOS={potes:"Potes",orc:"Orçamento",contas:"Contas",patrim:"Património",
+const TITULOS={potes:"Objetivos",orc:"Orçamento",contas:"Contas",patrim:"Património",
   mes:"Histórico",import:"Importar extrato",config:"Ajustes"};
 const VISTAS=["orc","potes","contas","patrim","mes","import","config"];
 const DENTRO_MAIS=["mes","config"];
@@ -878,64 +947,78 @@ function movHTML(m){
 }
 
 let ORD_POTES=false;
+let COMP_ABERTO=false;
 function rPotes(){
-  rRollover(checkRollover(),"rolloverPotes");
-  const agora=mesKey(new Date());
-  const N=S.potes.length;
-  E("potesTudo").innerHTML=S.potes.map(p=>{
-    const a=p.fix?totalFixas():(+p.aloc||0);
-    const c=p.conta?conta(p.conta):null;
-    const eur=v=>'<span class="tnum">'+vis(S.ocPotes,fmt(v))+'</span>';
-    const bits=[];
-    if(p.fix) bits.push("Recebe "+eur(a)+"/m\u00eas, do Or\u00e7amento");
-    else if(p.semRep) bits.push("Fora da repartição");
-    else bits.push(a>0?"Recebe "+eur(a)+"/m\u00eas":"Sem valor definido");
-    bits.push(p.fix?"Reinicia todos os meses":(p.acum?"Acumula o que sobra":"Reinicia todos os meses"));
-    if(c) bits.push(espelha(p)?"Espelha a "+esc(c.n):esc(c.n));
-    let barra="";
-    if(p.obj){
-      const sld=saldoPote(p);
-      const pc=Math.min(100,(sld/p.obj)*100);
-      barra=(S.ocPotes?'':'<div class="pbar" style="margin-top:8px"><i style="width:'+pc+'%;background:'+p.c+'"></i></div>')
-        +'<div class="meta" style="margin-top:5px">Objetivo '+eur(p.obj)+' &middot; Faltam '+eur(Math.max(0,p.obj-sld))+'</div>';
-    } else if(!p.fix){
-      const gs=gastosMes(agora).filter(m=>m.pote===p.id).reduce((x,m)=>x+m.v,0);
-      if(gs>0) barra='<div class="meta" style="margin-top:6px">'+eur(gs)+' gastos este mês</div>';
-    }
+  const R=reparticao(), lista=objetivos(), N=lista.length;
+  const eur=v=>'<span class="tnum">'+vis(S.ocPotes,fmt(v))+'</span>';
+  E("objResumo").innerHTML=!N?"Ainda não tens objetivos.":
+    (R.pedido>0?"Pedem "+eur(R.pedido)+" por mês"+(R.falta>0.004?' · <span style="color:var(--bad)">faltam '+eur(R.falta)+' no Orçamento</span>':" · o Orçamento chega"):"Nenhum recebe dinheiro por mês: define-o no Orçamento.")
+    +'<br>A ordem é a prioridade: se o dinheiro não chegar, enchem primeiro os de cima.';
+  const COR={ok:"var(--ac)",mal:"var(--bad)"};
+  E("potesTudo").innerHTML=lista.map((p,ix)=>{
+    const st=estadoObj(p,R.r[p.id]), c=p.conta?conta(p.conta):null;
+    const sub=[];
+    if(p.prazo) sub.push("Até "+fmtData(p.prazo));
+    if(c) sub.push(espelha(p)?"É o saldo de "+esc(c.n):"Guardado em "+esc(c.n));
+    if(R.r[p.id]&&R.r[p.id].dado>0) sub.push(eur(R.r[p.id].dado)+"/mês");
+    if(+p.parte>0&&+p.parte<100) sub.push("A tua parte: "+p.parte+"%");
+    const barra=st.alvo>0&&!S.ocPotes?'<div class="pbar" style="margin-top:8px"><i style="width:'+Math.min(100,st.sld/st.alvo*100)+'%;background:'+p.c+'"></i></div>':'';
     return '<div style="padding:14px 0;border-bottom:1px solid var(--line)">'
       +'<div style="display:flex;align-items:center;gap:11px">'
         +'<i style="width:9px;height:9px;border-radius:50%;background:'+p.c+';flex:0 0 9px"></i>'
         +'<button type="button" data-pe="'+p.id+'" style="flex:1;min-width:0;text-align:left;display:flex;justify-content:space-between;align-items:baseline;gap:10px">'
-          +'<span style="font-size:14.5px;font-weight:550">'+esc(p.n)+'</span>'
-          +'<b class="tnum" style="font-size:16px">'+vis(S.ocPotes,fmt(saldoPote(p)))+'<span style="opacity:.3;font-weight:400;margin-left:5px">\u203A</span></b></button>'
+          +'<span style="font-size:14.5px;font-weight:550;min-width:0">'+esc(p.n)+'</span>'
+          +'<b class="tnum" style="font-size:15px;white-space:nowrap">'+vis(S.ocPotes,fmt(st.sld)+(st.alvo>0?'<span style="color:var(--tx3);font-weight:450"> / '+fmt(st.alvo)+'</span>':''))
+          +'<span style="opacity:.3;font-weight:400;margin-left:5px">\u203A</span></b></button>'
         +(ORD_POTES
-          ? '<button type="button" data-pu="'+p.id+'" aria-label="Subir" style="width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px">\u2191</button>'
-            +'<button type="button" data-pdn="'+p.id+'" aria-label="Descer" style="width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px">\u2193</button>'
-          : '<button type="button" data-pd="'+p.id+'" aria-label="Depositar ou retirar" style="width:34px;height:34px;flex:0 0 34px;'
+          ? '<button type="button" data-pu="'+p.id+'" aria-label="Subir" style="width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px"'+(ix===0?" disabled":"")+'>\u2191</button>'
+            +'<button type="button" data-pdn="'+p.id+'" aria-label="Descer" style="width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px"'+(ix===N-1?" disabled":"")+'>\u2193</button>'
+          : '<button type="button" data-pd="'+p.id+'" aria-label="Pôr ou tirar dinheiro" style="width:34px;height:34px;flex:0 0 34px;'
             +'border-radius:10px;background:var(--bg3);color:var(--ac);font-size:17px">\u00B1</button>')
       +'</div>'
-      +'<div class="meta" data-pe="'+p.id+'" style="margin:5px 0 0 20px;cursor:pointer">'+bits.join(" &middot; ")+'</div>'
-      +(barra?'<div style="margin-left:20px">'+barra+'</div>':'')
-      +'</div>';
-  }).join("");
+      +'<div style="margin-left:20px">'+barra
+      +'<div class="meta" style="margin-top:6px;color:'+(COR[st.nivel]||"var(--tx3)")+'">'+(S.ocPotes?st.txt.replace(/\d[\d\s\u00a0\u202f.]*,\d\d\s?€/g,()=>mascara()):st.txt)+'</div>'
+      +(sub.length?'<div class="meta" style="margin-top:3px">'+sub.join(" &middot; ")+'</div>':'')
+      +(p.nota?'<div class="meta" style="margin-top:3px">'+notaHTML(p.nota)+'</div>':'')
+      +'</div></div>';
+  }).join("")||'<div class="empty">Cria um objetivo para algo que queres comprar: o preço, até quando, e quanto pões por mês.</div>';
   if(!ORD_POTES){
     E("potesTudo").querySelectorAll("[data-pe]").forEach(el=>el.onclick=()=>sheetPote(el.dataset.pe));
     E("potesTudo").querySelectorAll("[data-pd]").forEach(el=>el.onclick=()=>sheetAjuste(el.dataset.pd));
   }
   function mexe(id,d){
-    const i=S.potes.findIndex(x=>x.id===id), j=i+d;
-    if(i<0||j<0||j>=S.potes.length) return;
+    // troca com o objetivo vizinho, saltando o pote das despesas e os comprados
+    const ids=objetivos().map(x=>x.id), k=ids.indexOf(id), viz=ids[k+d]; if(!viz) return;
+    const i=S.potes.findIndex(x=>x.id===id), j=S.potes.findIndex(x=>x.id===viz);
     const t=S.potes[i]; S.potes[i]=S.potes[j]; S.potes[j]=t;
     save(); rPotes();
   }
   E("potesTudo").querySelectorAll("[data-pu]").forEach(el=>el.onclick=()=>mexe(el.dataset.pu,-1));
   E("potesTudo").querySelectorAll("[data-pdn]").forEach(el=>el.onclick=()=>mexe(el.dataset.pdn,1));
-  E("olhoPotesWrap").innerHTML=botaoOlho("olhoPotes","Mostrar ou ocultar os valores dos potes");
+  E("olhoPotesWrap").innerHTML=botaoOlho("olhoPotes","Mostrar ou ocultar os valores dos objetivos");
   ligaOlho("olhoPotes","ocPotes");
   E("addPote").onclick=()=>sheetPote(null);
   E("addPote").style.display=ORD_POTES?"none":"";
-  E("ordPote").textContent=ORD_POTES?"Concluir":"Reordenar";
+  E("ordPote").textContent=ORD_POTES?"Concluir":"Prioridade";
+  E("ordPote").style.display=N>1||ORD_POTES?"":"none";
   E("ordPote").onclick=()=>{ ORD_POTES=!ORD_POTES; rPotes(); };
+  // comprados
+  const comp=S.potes.filter(p=>p.estado==="comprado").sort((a,b)=>String((b.comprado||{}).d).localeCompare(String((a.comprado||{}).d)));
+  E("cardComprados").classList.toggle("hide",!comp.length);
+  E("compList").classList.toggle("hide",!COMP_ABERTO);
+  E("compChev").style.transform=COMP_ABERTO?"rotate(90deg)":"";
+  E("compHdr").onclick=()=>{ COMP_ABERTO=!COMP_ABERTO; rPotes(); };
+  E("compList").innerHTML=comp.map(p=>'<button type="button" data-cp="'+p.id+'" class="row2" style="width:100%;text-align:left">'
+    +'<span class="k">'+esc(p.n)+'<br><span class="meta">Comprado a '+fmtData((p.comprado||{}).d||"")+'</span></span>'
+    +'<span class="v tnum">'+eur((p.comprado||{}).v||0)+'</span></button>').join("");
+  E("compList").querySelectorAll("[data-cp]").forEach(b=>b.onclick=()=>sheetComprado(b.dataset.cp));
+}
+function notaHTML(t){
+  const u=String(t).match(/https?:\/\/\S+/);
+  if(!u) return esc(t);
+  let host=u[0]; try{ host=new URL(u[0]).hostname.replace(/^www\./,""); }catch(e){}
+  const resto=esc(String(t).replace(u[0],"").trim());
+  return (resto?resto+" · ":"")+'<a href="'+esc(u[0])+'" target="_blank" rel="noopener" style="color:var(--ac)">'+esc(host)+'</a>';
 }
 
 function rRollover(r,alvo){
@@ -944,12 +1027,12 @@ function rRollover(r,alvo){
   if(r.novo){
     const mes=mesNome(r.k).split(" ")[0];
     b.innerHTML='<div class="banner"><p>'+(r.primeiro
-      ? "Os potes est\u00e3o vazios porque ainda n\u00e3o distribu\u00edste nenhuma mesada. Confirma o rendimento e as despesas no Or\u00e7amento e carrega aqui."
-      : "Os potes ainda n\u00e3o receberam a mesada de "+mesNome(r.k).toLowerCase()+". Carrega para lhes dar os <span class=\"tnum\">"+vis(alvo==="rolloverPotes"?S.ocPotes:S.ocOrc,fmt(S.rendimento))+"</span> deste m\u00eas.")
-      +'</p><button class="btn" id="doRoll_'+(alvo||"orc")+'">Encher os potes de '+mes+'</button></div>';
+      ? "Ainda n\u00e3o distribu\u00edste nenhuma mesada. Confirma o rendimento, as despesas e o que vai para cada objetivo, e carrega aqui."
+      : "A mesada de "+mesNome(r.k).toLowerCase()+" ainda n\u00e3o foi distribu\u00edda. Carrega para encher as despesas e os objetivos com os <span class=\"tnum\">"+vis(S.ocOrc,fmt(S.rendimento))+"</span> deste m\u00eas.")
+      +'</p><button class="btn" id="doRoll_'+(alvo||"orc")+'">Distribuir a mesada de '+mes+'</button></div>';
     E("doRoll_"+(alvo||"orc")).onclick=()=>{
       if(S.mesAtivo){S.hist.push({k:S.mesAtivo,gasto:gastosMes(S.mesAtivo).reduce((a,m)=>a+m.v,0)});}
-      aplicarMes(r.k); toast("Potes cheios"); render();
+      aplicarMes(r.k); toast("Mesada distribuída"); render();
     };
   } else b.innerHTML="";
 }
@@ -1014,6 +1097,20 @@ function rPlano(){
   E("cfDia").value=S.dia||1;
   E("cfDia").oninput=e=>{const v=+e.target.value;S.dia=(v>=1&&v<=28)?v:1;save();};
 
+  const obs=objetivos();
+  E("orcObj").innerHTML=(obs.length?'<div class="inline" style="margin-bottom:5px">'
+      +'<span class="meta" style="flex:1;padding-left:2px">Objetivo</span>'
+      +'<span class="meta" style="width:96px;max-width:96px;flex:0 0 96px;text-align:right">€/mês</span></div>'
+      +obs.map(p=>'<div style="margin-bottom:9px"><div class="inline">'
+        +'<span style="flex:1;min-width:0;font-size:14px;display:flex;align-items:center;gap:8px"><i style="width:8px;height:8px;border-radius:50%;background:'+p.c+';flex:0 0 8px"></i>'+esc(p.n)+'</span>'
+        +'<input type="number" inputmode="decimal" step="any" data-oa="'+p.id+'" value="'+(p.semRep?0:(+p.aloc||0))+'" class="'+oc+'" style="max-width:96px;flex:0 0 96px"></div>'
+        +'<div class="meta" data-oh="'+p.id+'" style="margin:3px 0 0 16px"></div></div>').join("")
+    :'<div class="empty">Ainda não tens objetivos. Cria-os no separador Objetivos.</div>')
+    +'<div id="orcObjTot"></div>';
+  E("orcObj").querySelectorAll("[data-oa]").forEach(el=>el.oninput=e=>{
+    const q=pote(el.dataset.oa); if(!q) return;
+    q.aloc=Math.max(0,+String(e.target.value).replace(",",".")||0); q.semRep=false; save(); rConfigLight();
+  });
   rConfigLight();
 }
 
@@ -1064,88 +1161,95 @@ function rConfig(){
 }
 function sheetPote(id){
   const nova=!id;
-  const base=nova?{id:"p"+Date.now(),n:"",c:"var(--ac)",aloc:0,obj:null,saldo:0,acum:true,conta:null}
-                 :Object.assign({},pote(id));
+  const base=nova?{id:"p"+Date.now(),n:"",c:"var(--ac)",aloc:0,obj:null,saldo:0,acum:true,conta:null,prazo:"",parte:100,nota:""}
+                 :copia(pote(id));
+  if(!base) return;
   const CORES=["var(--ac)","var(--inv)","var(--obj)","var(--res)","var(--cor)","var(--bad)"];
   const usado=!nova&&((+base.saldo||0)!==0||S.movs.some(m=>m.pote===id));
-  let h='<h2>'+(nova?"Novo pote":esc(base.n))+'</h2>'
-    +'<label class="f"><span>Nome</span><input type="text" id="pN" value="'+esc(base.n)+'"></label>'
-    +'<div class="f"><span>Cor</span><div class="chips" id="pCor"></div></div>';
-  if(!base.fix){
-    h+='<label class="f"><span>Entra na repartição mensal da mesada?</span><select id="pRep">'
-      +'<option value="1"'+(base.semRep?"":" selected")+'>Sim — recebe um valor todos os meses</option>'
-      +'<option value="0"'+(base.semRep?" selected":"")+'>Não — só o que eu lá puser</option></select></label>'
-      +'<label class="f" id="pAlocWrap"'+(base.semRep?' style="display:none"':'')+'><span>Entra por mês (€/mês)</span><input type="number" inputmode="decimal" id="pA" value="'+(base.aloc||0)+'"></label>'
-      +'<label class="f"><span>Comportamento</span><select id="pAc">'
-      +'<option value="1"'+(base.acum?" selected":"")+'>Acumula o que não gastas</option>'
-      +'<option value="0"'+(base.acum?"":" selected")+'>Reinicia todos os meses</option></select></label>'
-      +((nova||base.obj)
-        ? '<label class="f"><span>Tem um objetivo?</span><select id="pTemObj">'
-          +'<option value="0"'+(base.obj?"":" selected")+'>N\u00e3o</option>'
-          +'<option value="1"'+(base.obj?" selected":"")+'>Sim</option></select></label>'
-          +'<label class="f" id="pOWrap"'+(base.obj?'':' style="display:none"')+'><span>Quanto quero juntar (\u20ac)</span>'
-          +'<input type="number" inputmode="decimal" id="pO" value="'+(base.obj||"")+'" placeholder="Ex: 1000"></label>'
-        : '<button class="btn sec" id="pAddObj" style="margin:-4px 0 13px">+ Associar um objetivo</button>');
-  }
-  h+='<label class="f"><span>Vive em que conta</span><select id="pC"><option value="">\u2014</option>'
-    +S.contas.map(c=>'<option value="'+c.id+'"'+(base.conta===c.id?" selected":"")+'>'+esc(c.n)+'</option>').join("")
-    +'</select></label>'
-    +(base.conta?'<label class="f"><span>Saldo deste pote</span><select id="pEsp">'
-      +'<option value="1"'+(espelha(base)?" selected":"")+'>\u00c9 o saldo da conta</option>'
-      +'<option value="0"'+(espelha(base)?"":" selected")+'>Conta-se \u00e0 parte</option></select></label>':'')
+  const tipoMeta=+base.metaMeses>0?"meses":"valor";
+  const NUM=(idn,v,ph)=>'<input type="number" inputmode="decimal" step="any" id="'+idn+'" value="'+(v==null||v===0?"":v)+'"'+(ph?' placeholder="'+ph+'"':'')+'>';
+  let h='<h2>'+(nova?"Novo objetivo":esc(base.n))+'</h2>'
+    +'<label class="f"><span>O que queres</span><input type="text" id="pN" value="'+esc(base.n)+'" placeholder="Ex: Portátil novo"></label>'
+    +'<div class="f"><span>Cor</span><div class="chips" id="pCor"></div></div>'
+    +SEC("Meta")
+    +'<label class="f"><span>A meta é</span><select id="pTipo">'
+      +'<option value="valor"'+(tipoMeta==="valor"?" selected":"")+'>Um preço ou um valor</option>'
+      +'<option value="meses"'+(tipoMeta==="meses"?" selected":"")+'>Meses de despesas (fundo de emergência)</option>'
+      +'<option value="nada"'+(!(+base.obj>0)&&tipoMeta==="valor"&&!nova?" selected":"")+'>Sem meta, só juntar</option></select></label>'
+    +'<label class="f" id="wPreco"><span>Quanto custa (€)</span>'+NUM("pO",base.obj,"Ex: 1200")+'</label>'
+    +'<label class="f" id="wParte"><span>A tua parte (%)</span>'+NUM("pParte",+base.parte>0&&+base.parte<100?base.parte:100)+'</label>'
+    +'<p class="meta" id="wParteN" style="margin:-6px 0 13px">Se for a meias com alguém, põe 50: a app só conta o que é teu.</p>'
+    +'<label class="f" id="wMeses"><span>Quantos meses de despesas</span>'+NUM("pMeses",base.metaMeses||3)+'</label>'
+    +'<p class="meta" id="wMesesN" style="margin:-6px 0 13px"></p>'
+    +'<label class="f"><span>Até quando (opcional)</span><input type="date" id="pPrazo" value="'+(base.prazo||"")+'"></label>'
+    +SEC("Dinheiro")
+    +'<label class="f"><span>Quanto pões por mês (€)</span>'+NUM("pA",base.semRep?0:base.aloc,"0")+'</label>'
+    +'<p class="meta" id="pPlano" style="margin:-6px 0 13px"></p>'
+    +'<label class="f"><span>Onde guardas o dinheiro</span><select id="pC"><option value="">—</option>'
+      +S.contas.filter(c=>c.tipo!=="investimento"||c.id===base.conta).map(c=>'<option value="'+c.id+'"'+(base.conta===c.id?" selected":"")+'>'+esc(c.n)+'</option>').join("")
+      +'</select></label>'
+    +'<label class="f" id="wEsp"><span>O que este objetivo tem</span><select id="pEsp">'
+      +'<option value="0"'+(espelha(base)?"":" selected")+'>Conta-se à parte (a conta pode ter mais coisas)</option>'
+      +'<option value="1"'+(espelha(base)?" selected":"")+'>É o saldo inteiro da conta</option></select></label>'
+    +'<label class="f"><span>Nota ou ligação (opcional)</span><input type="text" id="pNota" value="'+esc(base.nota||"")+'" placeholder="Ex: modelo, loja, https://…"></label>'
     +'<button class="btn" id="pOk">Guardar</button>';
-  if(!nova&&!base.fix) h+='<button class="btn dang" id="pDel">Apagar pote</button>';
+  if(!nova&&!base.fix) h+='<button class="btn sec" id="pComp">Comprei</button><button class="btn dang" id="pDel">Apagar objetivo</button>';
   openSheet(h);
   let cor=base.c;
   function pintaCor(){
     E("pCor").innerHTML=CORES.map(c=>'<button type="button" data-cor="'+c+'" style="width:46px;height:40px;padding:0;border-radius:12px;background:var(--bg3);'
       +'border:2px solid '+(c===cor?c:"transparent")+'">'
       +'<i style="display:block;width:16px;height:16px;border-radius:50%;background:'+c+';margin:0 auto;pointer-events:none"></i></button>').join("");
-    E("pCor").querySelectorAll("[data-cor]").forEach(b=>{
-      b.onclick=ev=>{ ev.preventDefault(); cor=b.dataset.cor; pintaCor(); };
-      b.addEventListener("touchend",ev=>{ ev.preventDefault(); cor=b.dataset.cor; pintaCor(); },{passive:false});
-    });
   }
-  E("pCor").addEventListener("click",e=>{
-    const b=e.target.closest("[data-cor]"); if(!b) return;
-    cor=b.dataset.cor; pintaCor();
-  });
+  E("pCor").addEventListener("click",e=>{ const b=e.target.closest("[data-cor]"); if(!b) return; e.preventDefault(); cor=b.dataset.cor; pintaCor(); });
   pintaCor();
-  if(E("pTemObj")) E("pTemObj").onchange=e=>{
-    const w=E("pOWrap"); if(w) w.style.display=e.target.value==="1"?"":"none";
-    if(e.target.value==="0"&&E("pO")) E("pO").value="";
-  };
-  if(E("pAddObj")) E("pAddObj").onclick=()=>{ base.obj=0.01; sheetPote(id); };
-  if(E("pRep")) E("pRep").onchange=e=>{ base.semRep=e.target.value==="0"; const w=E("pAlocWrap"); if(w) w.style.display=base.semRep?"none":""; };
+  function colhe(){
+    const d={n:E("pN").value.trim(),c:cor,conta:E("pC").value||null,nota:E("pNota").value.trim(),prazo:E("pPrazo").value||""};
+    const t=E("pTipo").value;
+    d.obj=t==="valor"?(+String(E("pO").value).replace(",",".")||null):null;
+    d.metaMeses=t==="meses"?(+String(E("pMeses").value).replace(",",".")||null):null;
+    const pt=+E("pParte").value; d.parte=t==="valor"&&pt>0&&pt<100?pt:100;
+    d.aloc=Math.max(0,+String(E("pA").value).replace(",",".")||0); d.semRep=false;
+    d.espelho=d.conta?E("pEsp").value==="1":false;
+    return d;
+  }
+  function vivo(){
+    const t=E("pTipo").value, d=colhe();
+    E("wPreco").style.display=E("wParte").style.display=E("wParteN").style.display=t==="valor"?"":"none";
+    E("wMeses").style.display=E("wMesesN").style.display=t==="meses"?"":"none";
+    E("wMesesN").textContent="Hoje as tuas despesas são "+fmt(totalFixas())+" por mês: a meta dá "+fmt((+d.metaMeses||0)*totalFixas())+". Acompanha o Orçamento.";
+    E("wEsp").style.display=d.conta?"":"none";
+    // plano: com a meta e o prazo, quanto é preciso por mês
+    const q=Object.assign({},base,d), st=estadoObj(q,{pedido:d.aloc,dado:d.aloc});
+    E("pPlano").textContent=st.alvo>0?(st.falta<0.005?"Já tens o dinheiro.":st.txt+"."):"";
+    E("pPlano").style.color=st.nivel==="mal"?"var(--bad)":"";
+  }
+  E("sheetIn").querySelectorAll("input,select").forEach(el=>{ el.addEventListener("input",vivo); el.addEventListener("change",vivo); });
+  vivo();
   E("pOk").onclick=()=>{
-    const n=E("pN").value.trim();
-    if(!n){toast("Dá-lhe um nome");return;}
-    const d={n:n,c:cor,conta:E("pC").value||null};
-    if(E("pRep")){ d.semRep=E("pRep").value==="0"; if(d.semRep) d.aloc=0; }
-    if(E("pA")) d.aloc=+E("pA").value||0;
-    if(E("pAc")) d.acum=E("pAc").value==="1";
-    d.espelho = E("pEsp") ? E("pEsp").value==="1" : (E("pC").value?undefined:false);
-    if(E("pTemObj")&&E("pTemObj").value==="0") d.obj=null;
-    else if(E("pO")){ const o=+E("pO").value; d.obj=o>0?o:null; }
+    const d=colhe();
+    if(!d.n){toast("Dá-lhe um nome");return;}
+    if(E("pTipo").value==="valor"&&!(d.obj>0)){toast("Falta o preço, ou escolhe “Sem meta”");return;}
     if(nova){ S.potes.push(Object.assign(base,d)); }
     else { Object.assign(pote(id),d); }
     save(); closeSheet(); toast("Guardado"); render();
   };
+  if(E("pComp")) E("pComp").onclick=()=>sheetComprei(id);
   if(!nova&&!base.fix) E("pDel").onclick=()=>{
     if(!usado){
       S.potes=S.potes.filter(x=>x.id!==id);
       if(S.heroPote===id) S.heroPote=(S.potes[0]||{}).id;
-      save(); closeSheet(); toast("Pote apagado"); render(); return;
+      save(); closeSheet(); toast("Objetivo apagado"); render(); return;
     }
-    const outros=S.potes.filter(x=>x.id!==id);
-    if(!outros.length){toast("Tem de sobrar um pote");return;}
+    const outros=S.potes.filter(x=>x.id!==id&&x.estado!=="comprado");
+    if(!outros.length){toast("Tem de sobrar um");return;}
     openSheet('<h2>Apagar '+esc(base.n)+'</h2>'
       +'<p class="note" style="text-align:center">Tem '+fmt(base.saldo)+' e movimentos associados. Para onde vai tudo?</p>'
       +'<label class="f"><span>Transferir para</span><select id="pDest">'
       +outros.map(x=>'<option value="'+x.id+'">'+esc(x.n)+'</option>').join("")+'</select></label>'
       +'<button class="btn dang" id="pGo">Transferir e apagar</button>'
       +'<button class="btn sec" id="pNo">Cancelar</button>');
-    E("pNo").onclick=closeSheet;
+    E("pNo").onclick=()=>sheetPote(id);
     E("pGo").onclick=()=>{
       const dst=pote(E("pDest").value);
       dst.saldo=Math.round((( +dst.saldo||0)+(+base.saldo||0))*100)/100;
@@ -1157,7 +1261,72 @@ function sheetPote(id){
   };
 }
 
+/* comprei: o objetivo sai da lista e vai para o histórico; o dinheiro pode sair da conta */
+function sheetComprei(id){
+  const p=pote(id); if(!p) return;
+  const c=p.conta?conta(p.conta):null, aceita=c&&(c.tipo==="ordem"||c.tipo==="remunerada");
+  const sug=Math.round((alvoDe(p)||saldoPote(p))*100)/100;
+  openSheet('<h2>Comprei · '+esc(p.n)+'</h2>'
+    +'<label class="f"><span>Quanto pagaste (€)</span><input type="number" inputmode="decimal" step="any" id="cV" value="'+(sug||"")+'"></label>'
+    +'<label class="f"><span>Quando</span><input type="date" id="cD" value="'+hojeStr()+'"></label>'
+    +(aceita?'<label class="chkTaxa" style="margin:0 0 8px"><input type="checkbox" id="cTira" checked><span>Tirar o valor do saldo da '+esc(curtoNome(c.n))+'</span></label>'
+      +'<p class="meta" style="margin:0 0 13px">Desliga se o pagamento já está no saldo que registaste ou se pagaste com outra conta.</p>':'')
+    +'<p class="meta" style="margin:0 0 13px">O objetivo deixa de receber dinheiro e passa para "Comprados".</p>'
+    +'<button class="btn" id="cOk">Confirmar</button><button class="btn sec" id="cNo">Cancelar</button>');
+  E("cNo").onclick=()=>sheetPote(id);
+  E("cOk").onclick=()=>{
+    const v=+String(E("cV").value).replace(",","."); if(!(v>0)){ toast("Escreve quanto pagaste"); return; }
+    const d=E("cD").value||hojeStr();
+    if(aceita&&E("cTira").checked) movimentaConta(c,-v,d);
+    p.comprado={d,v,tinha:Math.round(saldoPote(p)*100)/100,tirou:!!(aceita&&E("cTira").checked)};
+    p.estado="comprado"; p.saldo=0; p.espelho=false;
+    save(); closeSheet(); toast("Parabéns pela compra"); render();
+  };
+}
+function sheetComprado(id){
+  const p=pote(id); if(!p) return; const k=p.comprado||{};
+  openSheet('<h2>'+esc(p.n)+'</h2>'
+    +'<div class="row2"><span class="k">Comprado a</span><span class="v">'+fmtData(k.d||"")+'</span></div>'
+    +'<div class="row2"><span class="k">Paguei</span><span class="v tnum">'+fmt(k.v||0)+'</span></div>'
+    +(alvoDe(p)>0?'<div class="row2"><span class="k">A meta era</span><span class="v tnum">'+fmt(alvoDe(p))+'</span></div>':'')
+    +(p.nota?'<p class="meta" style="margin:10px 0">'+notaHTML(p.nota)+'</p>':'')
+    +'<div style="height:10px"></div><button class="btn sec" id="cRep">Voltar a pôr nos objetivos</button>'
+    +'<button class="btn dang" id="cDel">Apagar do histórico</button>');
+  E("cRep").onclick=()=>{ delete p.estado; delete p.comprado; save(); closeSheet(); toast("Voltou aos objetivos"); render(); };
+  E("cDel").onclick=()=>{ S.potes=S.potes.filter(x=>x.id!==id); S.movs.forEach(m=>{ if(m.pote===id) m.pote=(pote(S.heroPote)||S.potes[0]).id; });
+    save(); closeSheet(); toast("Apagado"); render(); };
+}
+
 function rConfigLight(){
+  const R=reparticao(), v=x=>vis(S.ocOrc,fmt(x));
+  // objetivos: o que precisa cada um e o total
+  objetivos().forEach(p=>{
+    const h=document.querySelector('[data-oh="'+p.id+'"]'); if(!h) return;
+    const st=estadoObj(p,R.r[p.id]), r=R.r[p.id]||{pedido:0,dado:0};
+    let t=st.precisa!=null?(st.nivel==="ok"?"A tempo":"Para chegar a tempo: "+v(st.precisa)+"/mês"):(st.alvo>0&&st.falta<0.005?"Já tens o dinheiro":"");
+    if(r.pedido>r.dado+0.004) t=(t?t+" · ":"")+'<span style="color:var(--bad)">Só recebe '+v(r.dado)+'</span>';
+    h.innerHTML=t; h.style.color=st.nivel==="mal"?"var(--bad)":"";
+  });
+  const ot=E("orcObjTot");
+  if(ot) ot.innerHTML='<div class="row2" style="margin-top:4px"><span class="k">Para objetivos</span><span class="v tnum">'+v(R.dado)+'</span></div>'
+    +(R.falta>0.004?'<p class="meta" style="color:var(--bad);margin-top:6px">Pedes '+v(R.pedido)+', mas depois das despesas só sobram '+v(R.dado)+'. Faltam '+v(R.falta)+'.</p>':'');
+  // para gastar: rendimento − despesas fixas − objetivos − o que já gastaste este mês
+  const og=E("orcGastar");
+  if(og){
+    const gasto=gastosMes(mesKey(new Date())).reduce((a,m)=>a+m.v,0);
+    const fica=R.gastar-gasto, dias=diasRestantes();
+    og.innerHTML='<div class="row2"><span class="k">Rendimento</span><span class="v tnum">'+v(S.rendimento)+'</span></div>'
+      +'<div class="row2"><span class="k">− Despesas fixas</span><span class="v tnum">'+v(somaFixas())+'</span></div>'
+      +'<div class="row2"><span class="k">− Objetivos</span><span class="v tnum">'+v(R.dado)+'</span></div>'
+      +'<div class="row2"><span class="k">Para gastar no mês</span><span class="v tnum">'+v(R.gastar)+'</span></div>'
+      +'<div class="row2"><span class="k">− Já gasto este mês</span><span class="v tnum">'+v(gasto)+'</span></div>'
+      +'<div class="row2" style="border:none"><span class="k" style="font-weight:600;color:var(--tx)">Ainda podes gastar</span><span class="v tnum" style="font-size:17px;font-weight:650;color:var(--'+(fica<0?"bad":"ac")+')">'+v(fica)+'</span></div>'
+      +'<div style="margin-top:10px;padding:12px;border-radius:12px;background:var(--bg3);text-align:center">'
+      +(fica>0?'<div style="font-size:22px;font-weight:650" class="tnum">'+v(fica/dias)+'</div><div class="meta">por dia, nos '+dias+(dias===1?" dia":" dias")+' que faltam do mês</div>'
+        :'<div style="font-weight:600;color:var(--bad)">Já gastaste o que havia para este mês</div>')
+      +'</div>'
+      +'<p class="meta" style="margin-top:9px">As despesas variáveis do Orçamento fazem parte do que podes gastar. Os gastos contam-se a partir do que registas e importas: se o extrato trouxer a renda ou outra despesa fixa, ela conta duas vezes.</p>';
+  }
   const to=E("totOrc"); if(to)to.innerHTML=vis(S.ocOrc,fmt(totalFixas()));
   const tf=E("totFix"); if(tf)tf.innerHTML=vis(S.ocOrc,fmt(somaFixas()));
   const tv=E("totVar"); if(tv)tv.innerHTML=vis(S.ocOrc,fmt(somaVars()));
@@ -1907,12 +2076,12 @@ function rHub(){
     const e=estado(c,agora), saldo=e.valor||0;
     const esp=esperadoDe(c);
     total+=saldo;
-    const aqui=S.potes.filter(p=>p.conta===c.id);
+    const aqui=potesVivos().filter(p=>p.conta===c.id);
     let mal=0;
 
     const linha=[];
     if(c.proposito) linha.push(esc(c.proposito));
-    else if(aqui.length) linha.push("Pote: "+aqui.map(p=>esc(p.n)).join(", "));
+    else if(aqui.length) linha.push((aqui.length>1?"Objetivos: ":"Objetivo: ")+aqui.map(p=>esc(p.n)).join(", "));
     else linha.push('<span style="color:var(--tx3)">Sem finalidade definida</span>');
     if(c.tipo==="remunerada"&&taxaAtual(c)>0) linha.push("Rende "+taxaAtual(c).toLocaleString("pt-PT")+"%");
 
@@ -1934,7 +2103,7 @@ function rHub(){
     }
     if(!mensal&&aqui.length&&!aqui.some(p=>espelha(p))){
       const resto=saldo-aqui.reduce((a,p)=>a+saldoPote(p),0);
-      if(Math.abs(resto)>=0.01) notas.push('<span style="color:var(--tx3)">Não atribuído a nenhum pote: </span>'+eur(resto));
+      if(Math.abs(resto)>=0.01) notas.push('<span style="color:var(--tx3)">Não atribuído a nenhum objetivo: </span>'+eur(resto));
     }
     if(mal) alertas++;
 
@@ -1989,17 +2158,17 @@ function rReconc(){
   if(!E("reconcList")) return;
   const agora=new Date();
   const porConta={};
-  S.potes.forEach(p=>{ if(p.conta){ porConta[p.conta]=(porConta[p.conta]||0)+(+p.saldo||0); } });
-  const semConta=S.potes.filter(p=>!p.conta).reduce((a,p)=>a+(+p.saldo||0),0);
+  potesVivos().forEach(p=>{ if(p.conta){ porConta[p.conta]=(porConta[p.conta]||0)+(+p.saldo||0); } });
+  const semConta=potesVivos().filter(p=>!p.conta).reduce((a,p)=>a+(+p.saldo||0),0);
   E("reconcList").innerHTML=S.contas.map(c=>{
     const e=estado(c,agora), atrib=porConta[c.id]||0, dif=e.valor-atrib;
-    const pots=S.potes.filter(p=>p.conta===c.id).map(p=>p.n).join(", ");
+    const pots=potesVivos().filter(p=>p.conta===c.id).map(p=>p.n).join(", ");
     if(!atrib&&!e.valor) return "";
     return '<div class="row2"><span class="k">'+esc(c.n)+(pots?' <span style="color:var(--tx3)">· '+esc(pots)+'</span>':'')
       +'</span><span class="v tnum '+(Math.abs(dif)<0.01?"ac":"")+'">'+fmt(atrib)+'</span></div>'
       +(Math.abs(dif)>=0.01?'<div class="row2" style="border:none;padding-top:0"><span class="k" style="font-size:12px;color:var(--tx3)">Não atribuído aqui</span><span class="v tnum" style="font-size:12.5px;color:'+(dif<0?"var(--bad)":"var(--tx3)")+'">'+fmt(dif)+'</span></div>':"");
   }).join("")
-  +(semConta>0?'<div class="row2"><span class="k">Potes sem conta definida</span><span class="v tnum bad">'+fmt(semConta)+'</span></div>':"");
+  +(semConta>0?'<div class="row2"><span class="k">Objetivos sem conta definida</span><span class="v tnum bad">'+fmt(semConta)+'</span></div>':"");
 }
 
 /* ---------- editores ----------
@@ -2016,7 +2185,7 @@ function confirmaApagar(c,id,voltar){
     +'<div class="row2"><span class="k">Vale agora</span><span class="v tnum">'+fmt(e.valor||0)+'</span></div>'
     +(nSubs?'<div class="row2"><span class="k">Movimentos registados</span><span class="v">'+nSubs+'</span></div>':'')
     +(nPos?'<div class="row2"><span class="k">Posições registadas</span><span class="v">'+nPos+'</span></div>':'')
-    +(potes.length?'<div class="row2"><span class="k">Potes que lá vivem</span><span class="v">'+esc(potes.join(", "))+'</span></div>':'')
+    +(potes.length?'<div class="row2"><span class="k">Objetivos guardados aqui</span><span class="v">'+esc(potes.join(", "))+'</span></div>':'')
     +'<p class="note" style="text-align:center;margin-top:12px">Não há como recuperar sem uma cópia exportada.</p>'
     +'<button class="btn dang" id="xDelOk">Apagar definitivamente</button>'
     +'<button class="btn sec" id="xDelNo">Cancelar</button>');
@@ -2088,12 +2257,12 @@ function sheetConta(id){
     h+=SEC("Para que serve")
       +'<label class="f" id="kPropWrap"'+(potesAqui.length?' style="display:none"':'')+'><span>Finalidade</span>'
       +'<input type="text" id="kProp" value="'+esc(c.proposito||"")+'" placeholder="Ex: gastos do dia a dia"></label>'
-      +'<label class="f"><span>Pote que vive aqui</span><select id="kPote"><option value="">—</option>'
-      +S.potes.map(x=>'<option value="'+x.id+'"'+(potesAqui.indexOf(x.id)>-1?" selected":"")+'>'+esc(x.n)+'</option>').join("")
+      +'<label class="f"><span>Objetivo guardado aqui</span><select id="kPote"><option value="">—</option>'
+      +potesVivos().map(x=>'<option value="'+x.id+'"'+(potesAqui.indexOf(x.id)>-1?" selected":"")+'>'+esc(x.n)+'</option>').join("")
       +'</select></label>'
       +'<label class="f"><span>Quanto devia lá estar</span><select id="kEspM">'
       +'<option value=""'+(c.esperado==null||c.esperado===""?" selected":"")+'>Não comparar</option>'
-      +'<option value="auto"'+(c.esperado==="auto"?" selected":"")+'>O que os potes daqui pedem</option>'
+      +'<option value="auto"'+(c.esperado==="auto"?" selected":"")+'>O que os objetivos daqui pedem</option>'
       +'<option value="fixo"'+(+c.esperado>0?" selected":"")+'>Um valor que eu digo</option></select></label>'
       +(+c.esperado>0?'<label class="f"><span>Saldo esperado (€)</span>'
         +'<input type="number" inputmode="decimal" id="kEsp" value="'+(+c.esperado)+'"></label>':'')
@@ -2556,8 +2725,8 @@ function sheetGasto(){
     +'<div class="disp" id="disp"><span>0,00 €</span></div>'
     +calcHTML()
     +'<div class="chips" id="gCats"></div>'
-    +'<label class="f"><span>De que pote</span><select id="gPote">'
-      +S.potes.map(p=>'<option value="'+p.id+'"'+(p.id===selPote?" selected":"")+'>'+esc(p.n)+'</option>').join("")+'</select></label>'
+    +'<label class="f"><span>Descontar de</span><select id="gPote">'
+      +potesVivos().map(p=>'<option value="'+p.id+'"'+(p.id===selPote?" selected":"")+'>'+esc(p.n)+'</option>').join("")+'</select></label>'
     +'<label class="f"><span>Nota (opcional)</span><input type="text" id="gNota" placeholder="Ex: almoço cantina"></label>'
     +'<button class="btn" id="gSave" disabled>Guardar</button>');
   const btn=E("gSave");
@@ -2738,13 +2907,13 @@ function curtoNome(t){ return String(t).split("\u2014")[0].trim(); }
 
 function sheetAjuste(pid){
   const p=pote(pid), c=p.conta?conta(p.conta):null;
-  const outros=S.potes.filter(x=>x.id!==pid);
+  const outros=potesVivos().filter(x=>x.id!==pid);
   const esp=espelha(p);
   const ops=[];
   const aceita=c&&(c.tipo==="ordem"||c.tipo==="remunerada"||c.tipo==="aforro");
   if(c&&!aceita&&esp){
     openSheet('<h2>'+esc(p.n)+'</h2>'
-      +'<p class="note" style="text-align:center">Este pote espelha '+esc(c.n)+'. O valor muda quando mexeres nesse registo, no Património.</p>'
+      +'<p class="note" style="text-align:center">Este objetivo é o saldo de '+esc(c.n)+'. O valor muda quando mexeres nesse registo, no Património.</p>'
       +'<button class="btn" id="ajAbre">Abrir '+esc(c.n)+'</button>'
       +'<button class="btn sec" id="ajNo">Fechar</button>');
     E("ajAbre").onclick=()=>{ closeSheet(); sheetAtivo(c.id); };
@@ -2753,7 +2922,7 @@ function sheetAjuste(pid){
   }
   if(aceita) ops.push({v:"conta",t:"Conta "+c.n+" \u2014 dinheiro que entra ou sai do banco"});
   if(!esp){
-    outros.forEach(x=>ops.push({v:"p:"+x.id,t:"Pote "+x.n+" \u2014 s\u00f3 muda a reparti\u00e7\u00e3o"}));
+    outros.forEach(x=>ops.push({v:"p:"+x.id,t:x.n+" \u2014 troca entre objetivos, nenhuma conta muda"}));
     ops.push({v:"manual",t:"Ajuste manual \u2014 sem contrapartida"});
   }
   openSheet('<h2>'+esc(p.n)+'</h2>'
@@ -2763,15 +2932,15 @@ function sheetAjuste(pid){
     +'<label class="f" style="margin-top:14px"><span>De onde vem ou para onde vai</span><select id="aOrig">'
     +ops.map(o=>'<option value="'+o.v+'">'+esc(o.t)+'</option>').join("")+'</select></label>'
     +'<div class="meta" id="aNota" style="margin:-6px 0 12px"></div>'
-    +'<button class="btn" id="aAdd" disabled>Entra neste pote</button>'
-    +'<button class="btn sec" id="aSub" disabled>Sai deste pote</button>');
+    +'<button class="btn" id="aAdd" disabled>Pôr neste objetivo</button>'
+    +'<button class="btn sec" id="aSub" disabled>Tirar deste objetivo</button>');
   function nota(){
     const o=E("aOrig").value;
     E("aNota").textContent = o==="conta"
-      ? "Mexe no saldo da conta e no pote ao mesmo tempo, para os dois continuarem a bater."
+      ? "Mexe no saldo da conta e no objetivo ao mesmo tempo, para os dois continuarem a bater."
       : o==="manual"
-        ? "S\u00f3 corrige o pote. Vai deixar de bater com a conta onde ele vive."
-        : "Troca dinheiro entre dois potes. Nenhuma conta muda.";
+        ? "S\u00f3 corrige o objetivo. Vai deixar de bater com a conta onde est\u00e1 guardado."
+        : "Troca dinheiro entre dois objetivos. Nenhuma conta muda.";
   }
   E("aOrig").onchange=nota; nota();
   calcLiga(v=>{const ok=v>0; E("aAdd").disabled=!ok; E("aSub").disabled=!ok;});
@@ -2796,7 +2965,7 @@ function sheetApagarMov(id){
   const m=S.movs.find(x=>x.id===id); if(!m)return;
   openSheet('<h2>Apagar movimento</h2><p class="note" style="text-align:center">'
     +esc(m.nota||m.cat)+" · "+fmt(Math.abs(m.v))+'</p>'
-    +'<button class="btn dang" id="dYes">Apagar e devolver ao pote</button>'
+    +'<button class="btn dang" id="dYes">Apagar e devolver o dinheiro</button>'
     +'<button class="btn sec" id="dNo">Cancelar</button>');
   E("dNo").onclick=closeSheet;
   E("dYes").onclick=()=>{
@@ -3069,8 +3238,8 @@ function rImport(){
   E("prevRows").querySelectorAll("[data-row]").forEach(el=>el.onclick=()=>sheetLinha(+el.dataset.row));
 
   E("impCard").innerHTML='<div class="card"><h3>Importar</h3>'
-    +'<label class="f"><span>Descontar de que pote</span><select id="impPote">'
-      +S.potes.map(p=>'<option value="'+p.id+'"'+(p.id===IMP.pote?" selected":"")+'>'+esc(p.n)+'</option>').join("")+'</select></label>'
+    +'<label class="f"><span>Descontar de</span><select id="impPote">'
+      +potesVivos().map(p=>'<option value="'+p.id+'"'+(p.id===IMP.pote?" selected":"")+'>'+esc(p.n)+'</option>').join("")+'</select></label>'
     +'<button class="btn" id="impDo"'+(sel.length?"":" disabled")+'>Importar '+sel.length+' movimento'+(sel.length===1?"":"s")+'</button>'
     +'<button class="btn sec" id="impCancel">Descartar ficheiro</button></div>';
   E("impPote").onchange=e=>{IMP.pote=e.target.value;};

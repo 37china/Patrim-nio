@@ -184,7 +184,7 @@ const sec=t=>console.log("\n"+t);
   // editor das Contas: só o que é da conta enquanto sítio
   await pg.tap('[data-hc="cgd"]'); await pg.waitForTimeout(300);
   let campos=await pg.$$eval("#sheetIn label.f > span",e=>e.map(x=>x.textContent.trim()));
-  ok("editor da conta: tem finalidade, pote e esperado", ["Nome","Esta conta paga juros?","Pote que vive aqui","Quanto devia lá estar"].every(x=>campos.includes(x)), campos);
+  ok("editor da conta: tem finalidade, pote e esperado", ["Nome","Esta conta paga juros?","Objetivo guardado aqui","Quanto devia lá estar"].every(x=>campos.includes(x)), campos);
   ok("editor da conta: sem taxa, IRS nem movimentos", !campos.some(x=>/TANB|IRS|Série|Vence|Pagamento/i.test(x)), campos);
   await pg.evaluate(()=>closeSheet());
   // conta nova que rende: guarda e abre o registo do rendimento
