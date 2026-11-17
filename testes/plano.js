@@ -1,6 +1,7 @@
 // Planos de investimento periódico, com contas feitas à mão. Corre: node testes/plano.js
 const path=require("path");
 const {chromium}=require(process.env.PLAYWRIGHT||'/home/claude/.npm-global/lib/node_modules/@playwright/mcp/node_modules/playwright/index.js');
+const {comExemplo}=require("./exemplo.js");
 const FICHEIRO=process.argv[2]||path.join(__dirname,"..","index.html");
 let falhas=0, feitos=0;
 const ok=(n,c,x)=>{ feitos++; if(!c){ falhas++; console.log("  FALHA  "+n+(x!==undefined?"  -> "+JSON.stringify(x):"")); } };
@@ -10,6 +11,7 @@ const perto=(a,b,t)=>Math.abs(a-b)<(t||0.0005);
   const pg=await b.newPage({viewport:{width:390,height:1000},hasTouch:true,isMobile:true,timezoneId:"Europe/Lisbon",locale:"pt-PT"});
   pg.on("pageerror",e=>{ falhas++; console.log("  ERRO JS: "+e.message); });
   await pg.clock.setFixedTime(new Date("2026-11-15T12:00:00"));
+  await comExemplo(pg);
   await pg.goto("file://"+path.resolve(FICHEIRO)); await pg.waitForTimeout(350);
   await pg.evaluate(()=>{
     conta("tr").subs=[{id:"b",valor:1200,data:"2026-05-02"}]; conta("tr").taxas=[{data:"2026-05-02",v:2.25}];

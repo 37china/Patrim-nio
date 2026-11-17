@@ -2,6 +2,7 @@
 // Precisa do Playwright e do Chrome; o caminho do Playwright pode vir em PLAYWRIGHT.
 const path=require("path");
 const {chromium}=require(process.env.PLAYWRIGHT||'/home/claude/.npm-global/lib/node_modules/@playwright/mcp/node_modules/playwright/index.js');
+const {comExemplo}=require("./exemplo.js");
 const FICHEIRO=process.argv[2]||path.join(__dirname,"..","index.html");
 const ALVO="file://"+path.resolve(FICHEIRO);
 let falhas=0, feitos=0;
@@ -13,6 +14,7 @@ const sec=t=>console.log("\n"+t);
   const nova=async()=>{
     const pg=await b.newPage({viewport:{width:390,height:1000},hasTouch:true,isMobile:true,timezoneId:"Europe/Lisbon",locale:"pt-PT"});
     pg.on("pageerror",e=>{ falhas++; console.log("  ERRO JS: "+e.message); });
+    await comExemplo(pg);
     await pg.goto(ALVO); await pg.waitForTimeout(350);
     return pg;
   };
@@ -395,7 +397,7 @@ const sec=t=>console.log("\n"+t);
   await pg.tap("#wipe"); await pg.waitForTimeout(250); await pg.tap("#wYes"); await pg.waitForTimeout(400);
   let vz=await visivel();
   ok("apagar tudo: a app fica num separador que existe", vz.vistas.length===1&&vz.titulo==="Orçamento", vz);
-  ok("apagar tudo: estado de fábrica, já migrado", await pg.evaluate(()=>S.mig10===2&&S.contas.length===6&&conta("aforro").irs===28&&!S.contas.some(c=>c.id==="dp")));
+  ok("apagar tudo: fica vazio, como uma instalação nova", await pg.evaluate(()=>S.mig10===2&&S.contas.length===0&&S.potes.length===1&&S.potes[0].fix&&S.fixas.length===0&&S.rendimento===0));
   // importar a cópia de antes
   await pg.evaluate(()=>go("config")); await pg.waitForTimeout(250);
   await pg.setInputFiles("#impFile",{name:"mesada.json",mimeType:"application/json",buffer:Buffer.from(antesJson)});

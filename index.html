@@ -472,36 +472,30 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="16/11 15:51";
+const BUILD="17/11 16:43";
 const DEF={
- v:1, rendimento:550,
- fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},
-        {n:"Transportes",v:0,f:false},{n:"Saídas e restaurantes",v:0,f:false}],
+ v:1, rendimento:0,
+ fixas:[],
+ // o único pote que existe sempre: é onde se descontam os gastos do mês. Não é um objetivo nem aparece como tal.
  potes:[
-  {id:"correntes",n:"Despesas Correntes",c:"var(--cor)",aloc:0,obj:null,saldo:0,acum:false,fix:true},
-  {id:"gastar",   n:"Poupança", c:"var(--ac)", aloc:0,  obj:null,saldo:0,acum:true,semRep:true},
-  {id:"investir", n:"Investimentos",    c:"var(--inv)",aloc:50, obj:null,saldo:0,acum:true}
+  {id:"correntes",n:"Gastos do mês",c:"var(--cor)",aloc:0,obj:null,saldo:0,acum:false,fix:true}
  ],
  cats:["Alimentação","Transportes","Restaurantes","Saídas","Compras","Subscrições","Desporto","Saúde","Material","Outros"],
  icons:{"Alimentação":"🛒","Transportes":"🚇","Restaurantes":"🍽","Saídas":"🍺","Compras":"🛍",
         "Subscrições":"🔁","Desporto":"🏀","Saúde":"💊","Material":"📚","Outros":"•","Entrada":"⬇︎","Ajuste":"⇄"},
  movs:[], mesAtivo:null, pin:null, hist:[], dia:1, regras:[], imp:[], heroPote:"correntes",
  irs:28, patLock:"off", patCred:null,
- contas:[
-  {id:"revolut",n:"Revolut",tipo:"ordem",saldo:0,data:null},
-  {id:"cgd",n:"CGD",tipo:"ordem",saldo:0,data:null},
-  {id:"tr",n:"Trade Republic — à ordem",tipo:"remunerada",subs:[],tanb:0,freq:"mensal",diaJuro:1,irs:28,retencao:true},
-  {id:"t212",n:"Trading 212 — à ordem",tipo:"remunerada",subs:[],tanb:0,freq:"diaria",horaJuro:"02:08",retencao:false,irs:null},
-  {id:"aforro",n:"Certificados de Aforro",tipo:"aforro",serie:"F",subs:[],tanb:2.5,premio:0,irs:28,retencao:true,secundaria:true},
-  {id:"trinv",n:"Trade Republic — carteira",tipo:"investimento",valor:0,investido:0,data:null}
- ]
+ contas:[]
 };
+// uma instalação nova nasce com as migrações dadas como feitas: não há dados antigos para corrigir.
+// Só se aplica quando não há nada guardado; uma cópia antiga importada continua a ser migrada.
+const MIGS_FEITAS={mig2:1,mig3:1,mig4:1,mig5:1,mig6:1,mig7:1,mig8:1,mig9:1,mig10:2,mig11:1};
 let S, view="inicio";
 
 /* ---------- persistência ---------- */
 function load(){
-  try{const r=localStorage.getItem(K); S=r?Object.assign({},DEF,JSON.parse(r)):JSON.parse(JSON.stringify(DEF));}
-  catch(e){S=JSON.parse(JSON.stringify(DEF));}
+  try{const r=localStorage.getItem(K); S=r?Object.assign({},DEF,JSON.parse(r)):Object.assign(JSON.parse(JSON.stringify(DEF)),MIGS_FEITAS);}
+  catch(e){S=Object.assign(JSON.parse(JSON.stringify(DEF)),MIGS_FEITAS);}
   if(!Array.isArray(S.potes)||!S.potes.length)S.potes=JSON.parse(JSON.stringify(DEF.potes));
   if(!Array.isArray(S.movs))S.movs=[];
   if(!Array.isArray(S.hist))S.hist=[];
@@ -1339,6 +1333,20 @@ function rConfigLight(){
 const TIPOS={ordem:"À ordem",remunerada:"À ordem remunerada",prazo:"Depósito a prazo",aforro:"Certificados de Aforro",investimento:"Carteira de investimento",privado:"Private market"};
 const CATS={etf:"ETF",acao:"Ação",cripto:"Cripto"};
 const conta=id=>S.contas.find(c=>c.id===id);
+const DURACOES={d30:"30 dias",d60:"60 dias",d90:"90 dias",m3:"3 meses",m6:"6 meses",m9:"9 meses",m12:"1 ano",
+  m18:"18 meses",m24:"2 anos",m36:"3 anos",m60:"5 anos",outra:"Outra · escolho a data"};
+function somaDuracao(ini,k){
+  if(!/^\d{4}-\d\d-\d\d$/.test(ini||"")||!k||k==="outra") return null;
+  const [Y,M,D]=ini.split("-").map(Number), z=n=>String(n).padStart(2,"0"), n=+k.slice(1);
+  let t;
+  if(k[0]==="d") t=new Date(Date.UTC(Y,M-1,D+n));
+  else { const ult=new Date(Date.UTC(Y,M-1+n+1,0)).getUTCDate(); t=new Date(Date.UTC(Y,M-1+n,Math.min(D,ult))); }
+  return t.getUTCFullYear()+"-"+z(t.getUTCMonth()+1)+"-"+z(t.getUTCDate());
+}
+function duracaoDe(ini,fim){
+  if(!ini||!fim) return ini?"m12":"outra";
+  return Object.keys(DURACOES).find(k=>k!=="outra"&&somaDuracao(ini,k)===fim)||"outra";
+}
 
 function addMeses(d,n){
   const x=new Date(d.getTime()), dia=x.getDate();
@@ -1839,8 +1847,8 @@ function pintaPatrim(){
       return h+'<div class="meta" style="margin-top:5px;color:var(--tx3)">Sem dinheiro registado. Toca no nome para o preencher.</div></div>';
     }
     if(c.tipo==="prazo"){
-      const fim=noVencimento(c), d=c.vence?diasPara(c.vence):null;
-      h+=linha(c.vence?(e.vencido?"Venceu a ":"Vence a ")+fmtData(c.vence):"Sem data de vencimento",
+      const fim=noVencimento(c), d=c.vence?diasPara(c.vence):null, du=duracaoDe((c.subs&&c.subs[0]||{}).data,c.vence);
+      h+=linha(c.vence?(du!=="outra"?DURACOES[du]+" · ":"")+(e.vencido?"Venceu a ":"Vence a ")+fmtData(c.vence):"Sem data de vencimento",
                e.vencido?'<span style="color:var(--ac)">Vencido</span>'
                         :(d===null?"":(d===0?"Hoje":d===1?"Amanhã":"Faltam "+d+" dias")));
       if(!e.vencido) h+=blocoJuro(c,e);
@@ -2444,6 +2452,7 @@ function sheetAtivo(id,tipoNovo){
       h+=SEC("O depósito")
         +'<label class="f"><span>Montante (€)</span><input type="number" inputmode="decimal" id="aCap" value="'+(s0.valor||0)+'"></label>'
         +'<label class="f"><span>Constituído em</span><input type="date" id="aIni" value="'+(s0.data||"")+'"></label>'
+        +'<label class="f"><span>Duração</span><select id="aDur">'+Object.keys(DURACOES).map(k=>'<option value="'+k+'"'+(duracaoDe(s0.data,c.vence)===k?" selected":"")+'>'+DURACOES[k]+'</option>').join("")+'</select></label>'
         +'<label class="f"><span>Vence em</span><input type="date" id="aVence" value="'+(c.vence||"")+'"></label>'
         +'<label class="f"><span>TANB (% ao ano), fixa até ao fim</span><input type="number" inputmode="decimal" step="0.001" id="aTx" value="'+((c.taxas[0]&&c.taxas[0].v)||0)+'"></label>'
         +'<label class="f"><span>Base de cálculo dos juros</span><select id="aBase">'
@@ -2532,6 +2541,15 @@ function sheetAtivo(id,tipoNovo){
     const redesenha=fn=>ev=>{ colher(); if(fn) fn(ev); form(); };
     const contas=["aCap","aIni","aVence","aTx","aBase","aDJ","aHJ","aP","aSerie","aVal","aInv","aD","aIrs"];
     contas.forEach(k=>{ const el=E(k); if(el){ el.oninput=resumo; el.onchange=resumo; } });
+    // duração e datas do depósito andam juntas: escolher a duração põe o vencimento,
+    // mudar uma das datas à mão acerta a duração (ou "Outra")
+    if(E("aDur")){
+      const poeVence=()=>{ const v=somaDuracao(E("aIni").value,E("aDur").value); if(v) E("aVence").value=v; resumo(); };
+      const acertaDur=()=>{ E("aDur").value=duracaoDe(E("aIni").value,E("aVence").value); };
+      E("aDur").onchange=poeVence;
+      E("aIni").onchange=()=>{ if(E("aDur").value!=="outra") poeVence(); else { acertaDur(); resumo(); } };
+      E("aVence").onchange=()=>{ acertaDur(); resumo(); };
+    }
     if(E("aTemIrs")) E("aTemIrs").onchange=redesenha(ev=>{ c.irs = ev.target.value==="1" ? (+c.irs>0?+c.irs:28) : null; if(c.irs&&c.retencao===undefined) c.retencao=true; });
     if(E("aRet")) E("aRet").onchange=resumo;
     if(E("aF")) E("aF").onchange=redesenha();

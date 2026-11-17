@@ -1,11 +1,13 @@
 // estados estranhos: campos em falta, datas vazias, tipos antigos. Nada pode rebentar.
 const path=require("path");
 const {chromium}=require(process.env.PLAYWRIGHT||'/home/claude/.npm-global/lib/node_modules/@playwright/mcp/node_modules/playwright/index.js');
+const {comExemplo}=require("./exemplo.js");
 const FICHEIRO=process.argv[2]||path.join(__dirname,"..","index.html");
 (async()=>{
   const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
   const pg=await b.newPage({viewport:{width:390,height:900},hasTouch:true,isMobile:true,timezoneId:"Europe/Lisbon"});
   let erros=0; pg.on("pageerror",e=>{ erros++; console.log("  ERRO JS:",e.message.slice(0,160)); });
+  await comExemplo(pg);
   await pg.goto("file://"+path.resolve(FICHEIRO)); await pg.waitForTimeout(350);
   const r=await pg.evaluate(async()=>{
     const out=[];

@@ -1,6 +1,7 @@
 // Objetivos e Orçamento, com contas feitas à mão. Corre: node testes/objetivos.js
 const path=require("path");
 const {chromium}=require(process.env.PLAYWRIGHT||'/home/claude/.npm-global/lib/node_modules/@playwright/mcp/node_modules/playwright/index.js');
+const {comExemplo}=require("./exemplo.js");
 const FICHEIRO=process.argv[2]||path.join(__dirname,"..","index.html");
 let falhas=0, feitos=0;
 const ok=(n,c,x)=>{ feitos++; if(!c){ falhas++; console.log("  FALHA  "+n+(x!==undefined?"  -> "+JSON.stringify(x):"")); } };
@@ -10,6 +11,7 @@ const perto=(a,b)=>Math.abs(a-b)<0.005;
   const pg=await b.newPage({viewport:{width:390,height:1100},hasTouch:true,isMobile:true,timezoneId:"Europe/Lisbon",locale:"pt-PT"});
   pg.on("pageerror",e=>{ falhas++; console.log("  ERRO JS: "+e.message); });
   await pg.clock.setFixedTime(new Date("2026-11-16T12:00:00"));
+  await comExemplo(pg);
   await pg.goto("file://"+path.resolve(FICHEIRO)); await pg.waitForTimeout(350);
   await pg.evaluate(()=>{
     S.rendimento=760; S.fixas=[{n:"Renda",v:420,f:true},{n:"Comida",v:150,f:false}];

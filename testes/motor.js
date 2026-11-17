@@ -1,10 +1,12 @@
 // Contas do motor de juros verificadas à mão. Corre: node testes/motor.js   (FUSO=Europe/Lisbon para outro fuso)
 const path=require("path");
 const {chromium}=require(process.env.PLAYWRIGHT||'/home/claude/.npm-global/lib/node_modules/@playwright/mcp/node_modules/playwright/index.js');
+const {comExemplo}=require("./exemplo.js");
 const FICHEIRO=process.argv[2]||path.join(__dirname,"..","index.html");
 (async()=>{
   const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
   const pg=await b.newPage(process.env.FUSO?{timezoneId:process.env.FUSO}:{}); pg.on("pageerror",e=>console.log("ERRO:",e.message));
+  await comExemplo(pg);
   await pg.goto("file://"+path.resolve(FICHEIRO)); await pg.waitForTimeout(400);
   const r=await pg.evaluate(()=>{
     const f=x=>Math.round(x*10000)/10000;
