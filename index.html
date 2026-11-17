@@ -479,7 +479,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="17/11 17:36";
+const BUILD="17/11 17:49";
 const DEF={
  v:1, rendimento:0,
  fixas:[],
@@ -928,6 +928,15 @@ function mascara(){
     ? '<span class="msk msk-p" role="img" aria-label="Valor oculto">'+PONTOS+'</span>'
     : '<span class="msk msk-b" role="img" aria-label="Valor oculto"></span>';
 }
+/* Em Objetivos, Contas e Orçamento cada número esconde-se ao toque (S.ocI[separador][chave]);
+   o olho do separador esconde ou mostra tudo e apaga as exceções. */
+const OC_TAB={potes:"ocPotes",contas:"ocContas",orc:"ocOrc"};
+function ocK(tab,key){
+  const m=(S.ocI||{})[tab];
+  if(m&&Object.prototype.hasOwnProperty.call(m,key)) return !!m[key];
+  return !!S[OC_TAB[tab]];
+}
+function ih(tab,key,html){ return '<span data-ih="'+tab+'|'+key+'" class="ih">'+vis(ocK(tab,key),html)+'</span>'; }
 function vis(esconde,html){ return esconde?mascara():html; }
 function render(){
   document.body.classList.toggle("oc-pontos",S.ocEstilo==="pontos");
@@ -953,25 +962,26 @@ let ORD_POTES=false;
 let COMP_ABERTO=false;
 function rPotes(){
   const R=reparticao(), lista=objetivos(), N=lista.length;
-  const eur=v=>'<span class="tnum">'+vis(S.ocPotes,fmt(v))+'</span>';
+  const eur=v=>'<span class="tnum">'+ih("potes","resumo",fmt(v))+'</span>';
   E("objResumo").innerHTML=!N?"Ainda não tens objetivos.":
     (R.pedido>0?"Pedem "+eur(R.pedido)+" por mês"+(R.falta>0.004?' · <span style="color:var(--bad)">faltam '+eur(R.falta)+' no Orçamento</span>':" · o Orçamento chega"):"Nenhum recebe dinheiro por mês: define-o no Orçamento.")
     +'<br>A ordem é a prioridade: se o dinheiro não chegar, enchem primeiro os de cima.';
   const COR={ok:"var(--ac)",mal:"var(--bad)"};
   E("potesTudo").innerHTML=lista.map((p,ix)=>{
     const st=estadoObj(p,R.r[p.id]), c=p.conta?conta(p.conta):null;
+    const k="p:"+p.id, oc=ocK("potes",k);
     const sub=[];
     if(p.prazo) sub.push("Até "+fmtData(p.prazo));
     if(c) sub.push(espelha(p)?"É o saldo de "+esc(c.n):"Guardado em "+esc(c.n));
-    if(R.r[p.id]&&R.r[p.id].dado>0) sub.push(eur(R.r[p.id].dado)+"/mês");
+    if(R.r[p.id]&&R.r[p.id].dado>0) sub.push('<span class="tnum">'+ih("potes",k,fmt(R.r[p.id].dado))+'</span>/mês');
     if(+p.parte>0&&+p.parte<100) sub.push("A tua parte: "+p.parte+"%");
-    const barra=st.alvo>0&&!S.ocPotes?'<div class="pbar" style="margin-top:8px"><i style="width:'+Math.min(100,st.sld/st.alvo*100)+'%;background:'+p.c+'"></i></div>':'';
+    const barra=st.alvo>0&&!oc?'<div class="pbar" style="margin-top:8px"><i style="width:'+Math.min(100,st.sld/st.alvo*100)+'%;background:'+p.c+'"></i></div>':'';
     return '<div style="padding:14px 0;border-bottom:1px solid var(--line)">'
       +'<div style="display:flex;align-items:center;gap:11px">'
         +'<i style="width:9px;height:9px;border-radius:50%;background:'+p.c+';flex:0 0 9px"></i>'
         +'<button type="button" data-pe="'+p.id+'" style="flex:1;min-width:0;text-align:left;display:flex;justify-content:space-between;align-items:baseline;gap:10px">'
           +'<span style="font-size:14.5px;font-weight:550;min-width:0">'+esc(p.n)+'</span>'
-          +'<b class="tnum" style="font-size:15px;white-space:nowrap">'+vis(S.ocPotes,fmt(st.sld)+(st.alvo>0?'<span style="color:var(--tx3);font-weight:450"> / '+fmt(st.alvo)+'</span>':''))
+          +'<b class="tnum" style="font-size:15px;white-space:nowrap">'+ih("potes",k,fmt(st.sld)+(st.alvo>0?'<span style="color:var(--tx3);font-weight:450"> / '+fmt(st.alvo)+'</span>':''))
           +'<span style="opacity:.3;font-weight:400;margin-left:5px">\u203A</span></b></button>'
         +(ORD_POTES
           ? '<button type="button" data-pu="'+p.id+'" aria-label="Subir" style="width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:var(--bg3);color:var(--tx2);font-size:14px"'+(ix===0?" disabled":"")+'>\u2191</button>'
@@ -980,14 +990,14 @@ function rPotes(){
             +'border-radius:10px;background:var(--bg3);color:var(--ac);font-size:17px">\u00B1</button>')
       +'</div>'
       +'<div style="margin-left:20px">'+barra
-      +'<div class="meta" style="margin-top:6px;color:'+(COR[st.nivel]||"var(--tx3)")+'">'+(S.ocPotes?st.txt.replace(/\d[\d\s\u00a0\u202f.]*,\d\d\s?€/g,()=>mascara()):st.txt)+'</div>'
+      +'<div class="meta" style="margin-top:6px;color:'+(COR[st.nivel]||"var(--tx3)")+'">'+'<span data-ih="potes|'+k+'">'+(oc?st.txt.replace(/\d[\d\s\u00a0\u202f.]*,\d\d\s?€/g,()=>mascara()):st.txt)+'</span>'+'</div>'
       +(sub.length?'<div class="meta" style="margin-top:3px">'+sub.join(" &middot; ")+'</div>':'')
       +(p.nota?'<div class="meta" style="margin-top:3px">'+notaHTML(p.nota)+'</div>':'')
       +'</div></div>';
   }).join("")||'<div class="empty">Cria um objetivo para algo que queres comprar: o preço, até quando, e quanto pões por mês.</div>';
   if(!ORD_POTES){
-    E("potesTudo").querySelectorAll("[data-pe]").forEach(el=>el.onclick=()=>sheetPote(el.dataset.pe));
-    E("potesTudo").querySelectorAll("[data-pd]").forEach(el=>el.onclick=()=>sheetAjuste(el.dataset.pd));
+    E("potesTudo").querySelectorAll("[data-pe]").forEach(el=>el.onclick=()=>{ OC_PROX=ocK("potes","p:"+el.dataset.pe); sheetPote(el.dataset.pe); });
+    E("potesTudo").querySelectorAll("[data-pd]").forEach(el=>el.onclick=()=>{ OC_PROX=ocK("potes","p:"+el.dataset.pd); sheetAjuste(el.dataset.pd); });
   }
   function mexe(id,d){
     // troca com o objetivo vizinho, saltando o pote das despesas e os comprados
@@ -1013,7 +1023,7 @@ function rPotes(){
   E("compHdr").onclick=()=>{ COMP_ABERTO=!COMP_ABERTO; rPotes(); };
   E("compList").innerHTML=comp.map(p=>'<button type="button" data-cp="'+p.id+'" class="row2" style="width:100%;text-align:left">'
     +'<span class="k">'+esc(p.n)+'<br><span class="meta">Comprado a '+fmtData((p.comprado||{}).d||"")+'</span></span>'
-    +'<span class="v tnum">'+eur((p.comprado||{}).v||0)+'</span></button>').join("");
+    +'<span class="v tnum">'+ih("potes","c:"+p.id,fmt((p.comprado||{}).v||0))+'</span></button>').join("");
   E("compList").querySelectorAll("[data-cp]").forEach(b=>b.onclick=()=>sheetComprado(b.dataset.cp));
 }
 function notaHTML(t){
@@ -1301,38 +1311,39 @@ function sheetComprado(id){
 }
 
 function rConfigLight(){
-  const R=reparticao(), v=x=>vis(S.ocOrc,fmt(x));
+  const R=reparticao(), V=(k,x)=>ih("orc",k,fmt(x));
   // objetivos: o que precisa cada um e o total
   objetivos().forEach(p=>{
     const h=document.querySelector('[data-oh="'+p.id+'"]'); if(!h) return;
     const st=estadoObj(p,R.r[p.id]), r=R.r[p.id]||{pedido:0,dado:0};
+    const v=x=>V("oh:"+p.id,x);
     let t=st.precisa!=null?(st.nivel==="ok"?"A tempo":"Para chegar a tempo: "+v(st.precisa)+"/mês"):(st.alvo>0&&st.falta<0.005?"Já tens o dinheiro":"");
     if(r.pedido>r.dado+0.004) t=(t?t+" · ":"")+'<span style="color:var(--bad)">Só recebe '+v(r.dado)+'</span>';
     h.innerHTML=t; h.style.color=st.nivel==="mal"?"var(--bad)":"";
   });
   const ot=E("orcObjTot");
-  if(ot) ot.innerHTML='<div class="row2" style="margin-top:4px"><span class="k">Para objetivos</span><span class="v tnum">'+v(R.dado)+'</span></div>'
-    +(R.falta>0.004?'<p class="meta" style="color:var(--bad);margin-top:6px">Pedes '+v(R.pedido)+', mas depois das despesas só sobram '+v(R.dado)+'. Faltam '+v(R.falta)+'.</p>':'');
+  if(ot) ot.innerHTML='<div class="row2" style="margin-top:4px"><span class="k">Para objetivos</span><span class="v tnum">'+V("objtot",R.dado)+'</span></div>'
+    +(R.falta>0.004?'<p class="meta" style="color:var(--bad);margin-top:6px">Pedes '+V("objfalta",R.pedido)+', mas depois das despesas só sobram '+V("objfalta",R.dado)+'. Faltam '+V("objfalta",R.falta)+'.</p>':'');
   // para gastar: rendimento − despesas fixas − objetivos − o que já gastaste este mês
   const og=E("orcGastar");
   if(og){
     const gasto=gastosMes(mesKey(new Date())).reduce((a,m)=>a+m.v,0);
     const fica=R.gastar-gasto, dias=diasRestantes();
-    og.innerHTML='<div class="row2"><span class="k">Rendimento</span><span class="v tnum">'+v(S.rendimento)+'</span></div>'
-      +'<div class="row2"><span class="k">− Despesas fixas</span><span class="v tnum">'+v(somaFixas())+'</span></div>'
-      +'<div class="row2"><span class="k">− Objetivos</span><span class="v tnum">'+v(R.dado)+'</span></div>'
-      +'<div class="row2"><span class="k">Para gastar no mês</span><span class="v tnum">'+v(R.gastar)+'</span></div>'
-      +'<div class="row2"><span class="k">− Já gasto este mês</span><span class="v tnum">'+v(gasto)+'</span></div>'
-      +'<div class="row2" style="border:none"><span class="k" style="font-weight:600;color:var(--tx)">Ainda podes gastar</span><span class="v tnum" style="font-size:17px;font-weight:650;color:var(--'+(fica<0?"bad":"ac")+')">'+v(fica)+'</span></div>'
+    og.innerHTML='<div class="row2"><span class="k">Rendimento</span><span class="v tnum">'+V("g:rend",S.rendimento)+'</span></div>'
+      +'<div class="row2"><span class="k">− Despesas fixas</span><span class="v tnum">'+V("g:fix",somaFixas())+'</span></div>'
+      +'<div class="row2"><span class="k">− Objetivos</span><span class="v tnum">'+V("g:obj",R.dado)+'</span></div>'
+      +'<div class="row2"><span class="k">Para gastar no mês</span><span class="v tnum">'+V("g:mes",R.gastar)+'</span></div>'
+      +'<div class="row2"><span class="k">− Já gasto este mês</span><span class="v tnum">'+V("g:gasto",gasto)+'</span></div>'
+      +'<div class="row2" style="border:none"><span class="k" style="font-weight:600;color:var(--tx)">Ainda podes gastar</span><span class="v tnum" style="font-size:17px;font-weight:650;color:var(--'+(fica<0?"bad":"ac")+')">'+V("g:fica",fica)+'</span></div>'
       +'<div style="margin-top:10px;padding:12px;border-radius:12px;background:var(--bg3);text-align:center">'
-      +(fica>0?'<div style="font-size:22px;font-weight:650" class="tnum">'+v(fica/dias)+'</div><div class="meta">por dia, nos '+dias+(dias===1?" dia":" dias")+' que faltam do mês</div>'
+      +(fica>0?'<div style="font-size:22px;font-weight:650" class="tnum">'+V("g:dia",fica/dias)+'</div><div class="meta">por dia, nos '+dias+(dias===1?" dia":" dias")+' que faltam do mês</div>'
         :'<div style="font-weight:600;color:var(--bad)">Já gastaste o que havia para este mês</div>')
       +'</div>'
       +'<p class="meta" style="margin-top:9px">As despesas variáveis do Orçamento fazem parte do que podes gastar. Os gastos contam-se a partir do que registas e importas: se o extrato trouxer a renda ou outra despesa fixa, ela conta duas vezes.</p>';
   }
-  const to=E("totOrc"); if(to)to.innerHTML=vis(S.ocOrc,fmt(totalFixas()));
-  const tf=E("totFix"); if(tf)tf.innerHTML=vis(S.ocOrc,fmt(somaFixas()));
-  const tv=E("totVar"); if(tv)tv.innerHTML=vis(S.ocOrc,fmt(somaVars()));
+  const to=E("totOrc"); if(to)to.innerHTML=V("tot",totalFixas());
+  const tf=E("totFix"); if(tf)tf.innerHTML=V("fix",somaFixas());
+  const tv=E("totVar"); if(tv)tv.innerHTML=V("var",somaVars());
   const nao=sobras()-alocado();
   const el=E("naoAloc");
   if(el){ el.textContent=fmt(nao); el.className="v tnum "+(nao<0?"bad":nao>0?"":"ac"); }
@@ -1723,6 +1734,15 @@ function botaoOlho(id,rot){
    num separador não mexe nos outros. */
 const OLHOS={olhoPotes:["ocPotes",()=>rPotes()],olhoContas:["ocContas",()=>rHub()],olhoOrc:["ocOrc",()=>{rOrc();rPlano();}]};
 document.addEventListener("click",ev=>{
+  const n=ev.target.closest&&ev.target.closest("[data-ih]");
+  if(n){
+    ev.preventDefault(); ev.stopPropagation();
+    const [tab,key]=n.dataset.ih.split("|");
+    S.ocI=S.ocI||{}; S.ocI[tab]=S.ocI[tab]||{};
+    S.ocI[tab][key]=!ocK(tab,key); save();
+    if(tab==="potes") rPotes(); else if(tab==="contas") rHub(); else rConfigLight();
+    return;
+  }
   const b=ev.target.closest&&ev.target.closest(".olho"); if(!b) return;
   if(b.id==="patOlho"){
     ev.preventDefault(); ev.stopPropagation();
@@ -1733,7 +1753,9 @@ document.addEventListener("click",ev=>{
   }
   const d=OLHOS[b.id]; if(!d) return;
   ev.preventDefault(); ev.stopPropagation();
-  S[d[0]]=!S[d[0]]; save(); d[1]();
+  S[d[0]]=!S[d[0]];
+  const tab=Object.keys(OC_TAB).find(k=>OC_TAB[k]===d[0]); if(S.ocI&&tab) delete S.ocI[tab];   // o olho manda em tudo
+  save(); d[1]();
 },true);
 function ligaOlho(id,chave){
   const b=E(id); if(!b) return;
@@ -2083,7 +2105,8 @@ function rHub(){
   const mensal=(S.hubModo||"total")==="mensal";
   const lista=S.contas.filter(ehBancaria);
   const N=lista.length;
-  const eur=v=>'<span class="tnum">'+vis(S.ocContas,fmt(v))+'</span>';
+  let kc="";
+  const eur=v=>'<span class="tnum">'+ih("contas",kc,fmt(v))+'</span>';
   let total=0, alertas=0;
 
   E("hubModos").innerHTML=[["total","Saldos"],["mensal","Por mês"]]
@@ -2091,7 +2114,7 @@ function rHub(){
 
   E("hubList").innerHTML=lista.map((c,ix)=>{
     const e=estado(c,agora), saldo=e.valor||0;
-    const esp=esperadoDe(c);
+    const esp=esperadoDe(c); kc="c:"+c.id;
     total+=saldo;
     const aqui=potesVivos().filter(p=>p.conta===c.id);
     let mal=0;
@@ -2125,7 +2148,7 @@ function rHub(){
     if(mal) alertas++;
 
     const corpo='<div class="info"><div class="nm"><span>'+esc(c.n)+'</span>'
-      +'<div style="display:flex;align-items:baseline;gap:2px"><b class="tnum">'+vis(S.ocContas,mensal?(esp>0?fmt(esp):"—"):fmt(saldo))+'</b>'
+      +'<div style="display:flex;align-items:baseline;gap:2px"><b class="tnum">'+ih("contas",kc,mensal?(esp>0?fmt(esp):"—"):fmt(saldo))+'</b>'
       +(mensal&&esp>0?'<span class="meta">/mês</span>':'')+'</div></div>'
       +'<div class="meta">'+linha.join(" &middot; ")+'</div>'
       +(notas.length?'<div class="meta" style="margin-top:3px">'
@@ -2144,7 +2167,7 @@ function rHub(){
   if(mensal){
     E("hubTotal").innerHTML=""; E("hubTotal").style.display="none";
   } else {
-    E("hubTotal").innerHTML='<span class="k">Total nas contas</span><span class="v tnum">'+vis(S.ocContas,fmt(total))+'</span>';
+    E("hubTotal").innerHTML='<span class="k">Total nas contas</span><span class="v tnum">'+ih("contas","total",fmt(total))+'</span>';
     E("hubTotal").style.display="";
   }
   E("hubAvisos").textContent = alertas
@@ -2159,7 +2182,7 @@ function rHub(){
     const t=S.contas[i]; S.contas[i]=S.contas[j]; S.contas[j]=t;
     save(); rHub();
   }
-  E("hubList").querySelectorAll("[data-hc]").forEach(el=>el.onclick=()=>sheetConta(el.dataset.hc));
+  E("hubList").querySelectorAll("[data-hc]").forEach(el=>el.onclick=()=>{ OC_PROX=ocK("contas","c:"+el.dataset.hc); sheetConta(el.dataset.hc); });
   E("hubList").querySelectorAll("[data-cu]").forEach(el=>el.onclick=()=>mexe(el.dataset.cu,-1));
   E("hubList").querySelectorAll("[data-cd]").forEach(el=>el.onclick=()=>mexe(el.dataset.cd,1));
   E("hubModos").querySelectorAll("[data-hm]").forEach(el=>el.onclick=()=>{ S.hubModo=el.dataset.hm; save(); rHub(); });
@@ -2624,8 +2647,8 @@ let OC_PROX=false, OC_MOSTRA=false;
 // a folha esconde os valores se veio de um sítio onde eles estão escondidos
 function folhaOculta(){
   if(OC_MOSTRA) return false;
-  if(view==="potes") return !!S.ocPotes;
-  if(view==="contas") return !!S.ocContas;
+  if(view==="potes") return !!S.ocPotes||OC_PROX;
+  if(view==="contas") return !!S.ocContas||OC_PROX;
   if(view==="orc") return !!S.ocOrc;
   if(view==="patrim") return OC_PROX||patTudoOculto();
   return false;

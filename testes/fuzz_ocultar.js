@@ -36,6 +36,8 @@ const um=a=>a[Math.floor(rnd()*a.length)];
     ["vai",async()=>{ await pg.evaluate(v=>go(v),um(["orc","potes","contas","patrim"])); }],
     ["olho",async()=>{ const v=await pg.evaluate(()=>view); const id={orc:"#olhoOrc",potes:"#olhoPotes",contas:"#olhoContas",patrim:"#patOlho"}[v]; if(id&&await pg.$(id)) await pg.tap(id); }],
     ["toque",async()=>{ const els=await pg.$$("section:not(.hide) [data-oc], section:not(.hide) [data-ocl], section:not(.hide) [data-ocj], section:not(.hide) #patTotal"); if(els.length){ const e=um(els); if(await e.isVisible()) await e.tap().catch(()=>{}); } }],
+    ["numero",async()=>{ const els=await pg.$$("section:not(.hide) [data-ih]"); if(els.length){ const e=um(els); if(await e.isVisible()) await e.tap().catch(()=>{}); } }],
+    ["numero",async()=>{ const els=await pg.$$("section:not(.hide) [data-ih]"); if(els.length){ const e=um(els); if(await e.isVisible()) await e.tap().catch(()=>{}); } }],
     ["aba",async()=>{ for(const id of ["#longoHdr","#totHdr","#invHdr","#prazoHdr","#compHdr"].sort(()=>rnd()-.5).slice(0,1)) if(await pg.$(id)&&await pg.isVisible(id)) await pg.tap(id).catch(()=>{}); }],
     ["espera",async()=>{ await pg.waitForTimeout(1100+Math.floor(rnd()*1200)); }],
     ["modo",async()=>{ await pg.evaluate(()=>{ S.hubModo=S.hubModo==="mensal"?"total":"mensal"; save(); if(view==="contas") rHub(); }); }],
@@ -56,7 +58,10 @@ const um=a=>a[Math.floor(rnd()*a.length)];
     const sec=document.querySelector("section:not(.hide)"); if(!sec) return [];
     const mal=[];
     const tudo={"v-potes":S.ocPotes,"v-contas":S.ocContas,"v-orc":S.ocOrc}[sec.id];
-    if(tudo){ const t=txt(sec).filter(x=>!(sec.id==="v-orc"&&/Distribuir|mesada/.test(x))); if(t.length) mal.push(sec.id+" olho fechado: "+t.join(" | ")); }
+    // número a número: o que diz escondido não tem dígitos
+    sec.querySelectorAll("[data-ih]").forEach(el=>{ const [tab,k]=el.dataset.ih.split("|"); if(ocK(tab,k)&&vis(el)&&re.test(el.textContent)) mal.push("número "+el.dataset.ih+": "+el.textContent.trim().slice(0,30)); });
+    const exc=S.ocI&&S.ocI[{"v-potes":"potes","v-contas":"contas","v-orc":"orc"}[sec.id]];
+    if(tudo&&!(exc&&Object.values(exc).some(x=>!x))){ const t=txt(sec).filter(x=>!(sec.id==="v-orc"&&/Distribuir|mesada/.test(x))); if(t.length) mal.push(sec.id+" olho fechado: "+t.join(" | ")); }
     if(sec.id==="v-orc"&&S.ocOrc){ sec.querySelectorAll("input[type=number]").forEach(i=>{ if(i.id!=="cfDia"&&i!==document.activeElement&&!i.classList.contains("oculto")) mal.push("campo sem máscara: "+(i.id||i.dataset.oa||i.dataset.fv)); }); }
     if(sec.id==="v-patrim"){
       if(patTudoOculto()){ const t=txt(sec); if(t.length) mal.push("patrim tudo oculto: "+t.join(" | ")); }

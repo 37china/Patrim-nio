@@ -69,7 +69,7 @@ const perto=(a,b)=>Math.abs(a-b)<0.005;
   ok("a ligação aparece com o nome do site", /exemplo\.pt/.test(await pg.$eval("#potesTudo",e=>e.textContent)));
   // comprei, com o dinheiro a sair da TR
   await pg.evaluate(()=>{ conta("tr").subs=[{id:"s",valor:2000,data:"2026-11-01"}]; conta("tr").taxas=[{data:"2026-11-01",v:0}]; pote("a").conta="tr"; save(); rPotes(); });
-  await pg.tap('[data-pe="a"]'); await pg.waitForTimeout(250); await pg.tap("#pComp"); await pg.waitForTimeout(250);
+  await pg.tap('[data-pe="a"] > span:first-child'); await pg.waitForTimeout(250); await pg.tap("#pComp"); await pg.waitForTimeout(250);
   await pg.fill("#cV","1150"); await pg.tap("#cOk"); await pg.waitForTimeout(300);
   const cp=await pg.evaluate(()=>({estado:pote("a").estado,v:pote("a").comprado.v,tr:estado(conta("tr"),new Date()).valor,nos:objetivos().map(p=>p.id)}));
   ok("comprei: sai dos objetivos, a TR perde 1150", cp.estado==="comprado"&&cp.v===1150&&perto(cp.tr,850)&&!cp.nos.includes("a"), cp);
@@ -77,6 +77,15 @@ const perto=(a,b)=>Math.abs(a-b)<0.005;
   await pg.tap("#compHdr"); await pg.waitForTimeout(150); await pg.tap('[data-cp="a"]'); await pg.waitForTimeout(250);
   await pg.tap("#cRep"); await pg.waitForTimeout(250);
   ok("voltar a pôr nos objetivos", await pg.evaluate(()=>objetivos().some(p=>p.id==="a")));
+  // número a número
+  await pg.tap('[data-ih="potes|p:b"]'); await pg.waitForTimeout(200);
+  ok("tocar no valor da Viagem esconde só esse objetivo", await pg.evaluate(()=>{ const r=[...document.querySelectorAll('[data-ih="potes|p:b"]')]; return r.length>0&&r.every(e=>!/\d,\d\d/.test(e.textContent))&&/\d,\d\d/.test(document.querySelector('[data-ih="potes|p:c"]').textContent); }));
+  ok("e não abre o editor", !(await pg.$("#pN")));
+  await pg.tap('[data-ih="potes|p:b"]'); await pg.waitForTimeout(200);
+  ok("novo toque mostra-o", await pg.evaluate(()=>/\d,\d\d/.test(document.querySelector('[data-ih="potes|p:b"]').textContent)));
+  await pg.tap('[data-ih="potes|p:c"]'); await pg.waitForTimeout(150);
+  await pg.tap("#olhoPotes"); await pg.waitForTimeout(150); await pg.tap("#olhoPotes"); await pg.waitForTimeout(150);
+  ok("o olho apaga as exceções: abrir mostra tudo", await pg.evaluate(()=>!document.querySelector("#v-potes .msk")));
   // escondido
   await pg.tap("#olhoPotes"); await pg.waitForTimeout(200);
   const vis=await pg.evaluate(()=>[...document.querySelectorAll("#v-potes *")].filter(e=>!e.children.length&&/\d,\d\d\s?€/.test(e.textContent)).map(e=>e.textContent));
