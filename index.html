@@ -51,10 +51,17 @@ header .mes{font-size:10.5px;color:var(--tx3);font-variant-numeric:tabular-nums;
 .msk-b{width:3.4em;height:.8em;border-radius:.3em;background:currentColor;opacity:.4;filter:blur(.24em);vertical-align:-.04em}
 /* campo de valor escondido: o texto não é desenhado e fica no lugar dele uma marca de
    largura fixa, para nem o número de algarismos se perceber. Ao tocar para editar, aparece. */
-input.oculto:not(:focus){color:transparent;-webkit-text-fill-color:transparent;
+/* folha aberta a partir de valores escondidos: os valores vêm tapados até tocares em "Mostrar" */
+.ocBar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-2px 0 12px;padding:9px 12px;
+  border-radius:12px;background:var(--bg3);font-size:13px;color:var(--tx2)}
+.ocBar button{color:var(--ac);font-weight:600;font-size:13px;padding:4px 2px}
+.oc-folha .tnum,.oc-folha .row2 .v{color:transparent!important;-webkit-text-fill-color:transparent!important;
+  background:var(--bg3)!important;border-radius:6px;user-select:none}
+.oc-folha .tnum *,.oc-folha .row2 .v *{visibility:hidden}
+input.oculto:not(:focus),.oc-folha input[type=number]:not(:focus){color:transparent;-webkit-text-fill-color:transparent;
   background-repeat:no-repeat;background-position:11px 50%;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='62' height='22'%3E%3Cfilter id='b' x='-30%25' y='-120%25' width='160%25' height='340%25'%3E%3CfeGaussianBlur stdDeviation='2.6'/%3E%3C/filter%3E%3Crect x='7' y='7' width='48' height='8' rx='4' fill='%23eef2f6' opacity='.45' filter='url(%23b)'/%3E%3C/svg%3E")}
-body.oc-pontos input.oculto:not(:focus){background-position:14px 50%;
+body.oc-pontos input.oculto:not(:focus),body.oc-pontos .oc-folha input[type=number]:not(:focus){background-position:14px 50%;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='10'%3E%3Cg fill='%2364707e'%3E%3Ccircle cx='5' cy='5' r='2.4'/%3E%3Ccircle cx='15' cy='5' r='2.4'/%3E%3Ccircle cx='25' cy='5' r='2.4'/%3E%3Ccircle cx='35' cy='5' r='2.4'/%3E%3Ccircle cx='45' cy='5' r='2.4'/%3E%3C/g%3E%3C/svg%3E")}
 
 .seta{width:18px;flex:0 0 18px;text-align:right;color:var(--tx3);align-self:center}
@@ -472,7 +479,7 @@ input:focus,select:focus{outline:none;border-color:var(--ac2)}
 <script>
 "use strict";
 const K="mesada.v1";
-const BUILD="17/11 16:43";
+const BUILD="17/11 17:36";
 const DEF={
  v:1, rendimento:0,
  fixas:[],
@@ -604,6 +611,8 @@ const mesKey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
 const MESES=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 function mesNome(k){const[a,m]=k.split("-");return Mai(MESES[+m-1])+" "+a;}
 const pote=id=>S.potes.find(p=>p.id===id);
+// texto com montantes lá dentro: cada montante fica num .tnum, para as folhas o poderem tapar
+const tnumTxt=t=>esc(t).replace(/\d[\d\s\u00a0\u202f.]*,\d\d\s?€/g,m=>'<span class="tnum">'+m+'</span>');
 const potesVivos=()=>S.potes.filter(p=>p.estado!=="comprado");
 const totalFixas=()=>S.fixas.reduce((a,f)=>a+(+f.v||0),0);
 const somaFixas=()=>S.fixas.filter(f=>f.f!==false).reduce((a,f)=>a+(+f.v||0),0);
@@ -1211,11 +1220,11 @@ function sheetPote(id){
     const t=E("pTipo").value, d=colhe();
     E("wPreco").style.display=E("wParte").style.display=E("wParteN").style.display=t==="valor"?"":"none";
     E("wMeses").style.display=E("wMesesN").style.display=t==="meses"?"":"none";
-    E("wMesesN").textContent="Hoje as tuas despesas são "+fmt(totalFixas())+" por mês: a meta dá "+fmt((+d.metaMeses||0)*totalFixas())+". Acompanha o Orçamento.";
+    E("wMesesN").innerHTML=tnumTxt("Hoje as tuas despesas são "+fmt(totalFixas())+" por mês: a meta dá "+fmt((+d.metaMeses||0)*totalFixas())+". Acompanha o Orçamento.");
     E("wEsp").style.display=d.conta?"":"none";
     // plano: com a meta e o prazo, quanto é preciso por mês
     const q=Object.assign({},base,d), st=estadoObj(q,{pedido:d.aloc,dado:d.aloc});
-    E("pPlano").textContent=st.alvo>0?(st.falta<0.005?"Já tens o dinheiro.":st.txt+"."):"";
+    E("pPlano").innerHTML=st.alvo>0?(st.falta<0.005?"Já tens o dinheiro.":tnumTxt(st.txt+".")):"";
     E("pPlano").style.color=st.nivel==="mal"?"var(--bad)":"";
   }
   E("sheetIn").querySelectorAll("input,select").forEach(el=>{ el.addEventListener("input",vivo); el.addEventListener("change",vivo); });
@@ -1748,11 +1757,11 @@ function ligaPatrim(){
       save(); toast("Compra registada"); pintaPatrim(); return;
     }
     const pn=t.closest("[data-plano]");
-    if(pn){ const [cid,pid]=pn.dataset.plano.split("|"); sheetPlano(cid,pid||null); return; }
+    if(pn){ const [cid,pid]=pn.dataset.plano.split("|"); OC_PROX=!!(conta(cid)||{}).ocultarValor; sheetPlano(cid,pid||null); return; }
     const ed=t.closest("[data-ce]");
-    if(ed){ const c=conta(ed.dataset.ce); if(c&&c.tipo==="ordem") sheetConta(c.id); else sheetAtivo(ed.dataset.ce); return; }
+    if(ed){ const c=conta(ed.dataset.ce); OC_PROX=!!(c&&c.ocultarValor); if(c&&c.tipo==="ordem") sheetConta(c.id); else sheetAtivo(ed.dataset.ce); return; }
     const vn=t.closest("[data-venc]");
-    if(vn){ sheetVencido(vn.dataset.venc); return; }
+    if(vn){ OC_PROX=!!(conta(vn.dataset.venc)||{}).ocultarValor; sheetVencido(vn.dataset.venc); return; }
     const vt=t.closest("[data-vt]");
     if(vt){ const c=conta(vt.dataset.vt); if(c){ c.taxaVistaEm=hojeStr(); save(); toast("Taxa confirmada"); pintaPatrim(); } return; }
     const v=t.closest("[data-ocl]"), j=t.closest("[data-ocj]");
@@ -1769,7 +1778,7 @@ function ligaPatrim(){
   E("invHdr").onclick=()=>{ INV_ABERTO=!INV_ABERTO; pintaPatrim(); };
   E("prazoHdr").onclick=()=>{ PRAZO_ABERTO=!PRAZO_ABERTO; pintaPatrim(); };
   E("patLbl").onclick=sheetPartes;
-  E("przBtn").onclick=sheetPrecos;
+  E("przBtn").onclick=()=>{ OC_PROX=S.contas.some(c=>c.tipo==="investimento"&&c.ocultarValor); sheetPrecos(); };
   E("addPat").onclick=sheetAdicionar;
 }
 
@@ -2513,7 +2522,7 @@ function sheetAtivo(id,tipoNovo){
           +'<div class="inline" style="margin-bottom:5px"><span class="meta" style="flex:1">'+(x.plano?"Quanto paguei por elas (€)":"Quanto paguei ao todo (€)")+'</span></div>'
           +'<div class="inline">'
             +'<input type="number" inputmode="decimal" data-pq="'+i+'" value="'+(x.custo||0)+'">'
-            +'<span class="meta" style="flex:1;text-align:right" id="pv'+i+'"></span></div>'
+            +'<span class="meta" style="flex:1;text-align:right"><span class="tnum" id="pv'+i+'"></span></span></div>'
           +'</div>').join("")
         +'<button class="btn sec" id="aAddPos">+ Adicionar posição</button>'
         +SEC("Resultado")
@@ -2610,10 +2619,24 @@ function sheetAtivo(id,tipoNovo){
 const FORA_ORC=["Entrada","Ajuste","Investimento"];
 
 /* ---------- sheets ---------- */
-function closeSheet(){E("sheets").innerHTML="";}
+function closeSheet(){E("sheets").innerHTML=""; OC_MOSTRA=false; OC_PROX=false;}
+let OC_PROX=false, OC_MOSTRA=false;
+// a folha esconde os valores se veio de um sítio onde eles estão escondidos
+function folhaOculta(){
+  if(OC_MOSTRA) return false;
+  if(view==="potes") return !!S.ocPotes;
+  if(view==="contas") return !!S.ocContas;
+  if(view==="orc") return !!S.ocOrc;
+  if(view==="patrim") return OC_PROX||patTudoOculto();
+  return false;
+}
 function openSheet(html){
-  E("sheets").innerHTML='<div class="sheet"><div id="sheetIn">'
-    +'<div id="sheetGrab"><div class="grab"></div></div>'+html+'</div></div>';
+  const oc=folhaOculta();
+  E("sheets").innerHTML='<div class="sheet"><div id="sheetIn"'+(oc?' class="oc-folha"':'')+'>'
+    +'<div id="sheetGrab"><div class="grab"></div></div>'
+    +(oc?'<div class="ocBar" id="ocBar"><span>Valores ocultos</span><button type="button" id="ocMostra">Mostrar</button></div>':'')
+    +html+'</div></div>';
+  if(oc) E("ocMostra").onclick=()=>{ OC_MOSTRA=true; E("sheetIn").classList.remove("oc-folha"); E("ocBar").remove(); };
   const fundo=E("sheets").querySelector(".sheet");
   fundo.onclick=e=>{if(e.target.classList.contains("sheet"))closeSheet();};
   const el=E("sheetIn");
@@ -2944,7 +2967,7 @@ function sheetAjuste(pid){
     ops.push({v:"manual",t:"Ajuste manual \u2014 sem contrapartida"});
   }
   openSheet('<h2>'+esc(p.n)+'</h2>'
-    +'<p class="note" style="text-align:center">Saldo atual: <b style="color:var(--tx)">'+fmt(saldoPote(p))+'</b></p>'
+    +'<p class="note" style="text-align:center">Saldo atual: <b class="tnum" style="color:var(--tx)">'+fmt(saldoPote(p))+'</b></p>'
     +'<div class="disp" id="disp"><span>0,00 \u20ac</span></div>'
     +calcHTML()
     +'<label class="f" style="margin-top:14px"><span>De onde vem ou para onde vai</span><select id="aOrig">'
