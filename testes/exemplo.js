@@ -1,6 +1,5 @@
 // Dados de exemplo para os testes. Uma instalação nova da app nasce vazia; os testes
 // precisam de contas e objetivos com que trabalhar, por isso começam com estes (inventados).
-// Só se põem se não houver nada guardado, para que recarregar a página mantenha o estado.
 const EXEMPLO={
   v:1, rendimento:550,
   fixas:[{n:"Contas de casa",v:75,f:true},{n:"Alimentação",v:0,f:false},{n:"Transportes",v:0,f:false},{n:"Saídas e restaurantes",v:0,f:false}],
@@ -19,7 +18,16 @@ const EXEMPLO={
     {id:"trinv",n:"Trade Republic — carteira",tipo:"investimento",valor:0,investido:0,data:null}
   ]
 };
+// Põe o exemplo logo a seguir à primeira abertura da página (cada página de teste tem o seu
+// armazenamento novo). Não se usa um script de arranque: corria também ao recarregar e, se o
+// armazenamento do file:// ainda não estivesse escrito em disco, apagava o estado do teste.
 async function comExemplo(pg){
-  await pg.addInitScript(j=>{ try{ if(!localStorage.getItem("mesada.v1")) localStorage.setItem("mesada.v1",j); }catch(e){} }, JSON.stringify(EXEMPLO));
+  const goto=pg.goto.bind(pg); let feito=false;
+  pg.goto=async(...a)=>{
+    const r=await goto(...a);
+    if(!feito){ feito=true;
+      await pg.evaluate(j=>{ localStorage.setItem("mesada.v1",j); load(); render(); }, JSON.stringify(EXEMPLO)); }
+    return r;
+  };
 }
 module.exports={EXEMPLO,comExemplo};
